@@ -13,6 +13,9 @@ import subprocess
 import sys
 import unicodedata
 from contextlib import contextmanager
+from typing import Optional
+
+from word_document_server.utils.text_safety import validate_position
 
 
 def _run_jxa(script: str, timeout: int = 30) -> str:
@@ -70,6 +73,9 @@ def _escape_as(s: str) -> str:
 
 def _escape_js(s: str) -> str:
     """Escape a Python string for safe embedding in JavaScript."""
+    s = s.replace("\x00", "")
+    s = s.replace("\u2028", "\\u2028")
+    s = s.replace("\u2029", "\\u2029")
     return (
         s.replace("\\", "\\\\")
         .replace('"', '\\"')
@@ -79,7 +85,7 @@ def _escape_js(s: str) -> str:
     )
 
 
-def _doc_finder_js(filename: str = None) -> str:
+def _doc_finder_js(filename: Optional[str] = None) -> str:
     """Return JXA code snippet that sets `d` to the target document.
 
     If filename is None/empty, uses documents[0] (front document).
@@ -132,7 +138,7 @@ JSON.stringify({
     return {"platform": "darwin", "version": info["version"]}
 
 
-def find_document(app_ref, filename: str = None):
+def find_document(app_ref, filename: Optional[str] = None):
     """Find an open document by name. Returns a dict with doc info.
 
     Args:
@@ -177,7 +183,7 @@ JSON.stringify({documents: docs, count: docs.length});
 """)
 
 
-def mac_get_info(filename: str = None) -> str:
+def mac_get_info(filename: Optional[str] = None) -> str:
     """Get document metadata."""
     finder = _doc_finder_js(filename)
     return _run_jxa(f"""
@@ -195,7 +201,7 @@ JSON.stringify({{
 """)
 
 
-def mac_save(filename: str = None, save_as: str = None) -> str:
+def mac_save(filename: Optional[str] = None, save_as: Optional[str] = None) -> str:
     """Save the document."""
     finder = _doc_finder_js(filename)
     if save_as:
@@ -214,7 +220,7 @@ JSON.stringify({{saved: true, name: d.name()}});
 """)
 
 
-def mac_undo(filename: str = None, times: int = 1) -> str:
+def mac_undo(filename: Optional[str] = None, times: int = 1) -> str:
     """Undo N times."""
     finder = _doc_finder_js(filename)
     return _run_jxa(f"""
@@ -231,7 +237,7 @@ JSON.stringify({{undone: {times}, results: results}});
 # ── Read ─────────────────────────────────────────────────────────────────
 
 
-def mac_get_text(filename: str = None) -> str:
+def mac_get_text(filename: Optional[str] = None) -> str:
     """Get all paragraph text from document."""
     finder = _doc_finder_js(filename)
     return _run_jxa(f"""
@@ -247,7 +253,7 @@ JSON.stringify({{paragraphs: result, count: result.length}});
 """)
 
 
-def mac_get_page_text(filename: str = None, page: int = 1, end_page: int = None) -> str:
+def mac_get_page_text(filename: Optional[str] = None, page: int = 1, end_page: Optional[int] = None) -> str:
     """Get text from a specific page range.
 
     Uses binary search with createRange + getRangeInformation to find page
@@ -295,7 +301,7 @@ JSON.stringify({{pages: pages, count: pages.length, page: {page}, end_page: ep, 
 
 
 def mac_find_text(
-    filename: str = None,
+    filename: Optional[str] = None,
     search_text: str = "",
     match_case: bool = False,
     whole_word: bool = False,
@@ -343,28 +349,28 @@ JSON.stringify({{matches: results, count: results.length, searchText: "{escaped_
 
 
 def mac_get_paragraph_format(
-    filename: str = None,
+    filename: Optional[str] = None,
     start_paragraph: int = 0,
-    end_paragraph: int = None,
+    end_paragraph: Optional[int] = None,
     include_runs: bool = False,
 ) -> str:
     """Get formatting details for paragraph range."""
     finder = _doc_finder_js(filename)
-    ep = f"{end_paragraph}" if end_paragraph is not None else "null"
+    sp0 = max(0, start_paragraph - 1) if start_paragraph else 0
+    ep0_js = f"Math.max(0, {end_paragraph} - 1)" if end_paragraph is not None else str(sp0)
     return _run_jxa(f"""
 var app = Application("Microsoft Word");
 {finder}
 var paras = d.paragraphs();
-var startP = {start_paragraph};
-var endP = {ep} !== null ? {ep} : startP;
-endP = Math.min(endP, paras.length - 1);
+var startP = {sp0};
+var endP = Math.min({ep0_js}, paras.length - 1);
 var results = [];
 for (var i = startP; i <= endP; i++) {{
     var p = paras[i];
     var pf = p.paragraphFormat;
     var fo = p.textObject.fontObject;
     var info = {{
-        index: i,
+        index: i + 1,
         text: p.textObject.content(),
         style: null,
         alignment: pf.alignment(),
@@ -386,7 +392,7 @@ JSON.stringify({{paragraphs: results}});
 """)
 
 
-def mac_diagnose_layout(filename: str = None) -> str:
+def mac_diagnose_layout(filename: Optional[str] = None) -> str:
     """Diagnose layout issues (keep_with_next chains, etc.)."""
     finder = _doc_finder_js(filename)
     return _run_jxa(f"""
@@ -422,10 +428,10 @@ JSON.stringify({{issues: issues, totalParagraphs: paras.length}});
 
 
 def mac_insert_text(
-    filename: str = None,
+    filename: Optional[str] = None,
     text: str = "",
     position: str = "end",
-    bookmark: str = None,
+    bookmark: Optional[str] = None,
     track_changes: bool = False,
 ) -> str:
     """Insert text into document."""
@@ -460,10 +466,9 @@ def mac_insert_text(
     sel.content = text;
 """
     else:
-        # Numeric position
+        pos_int = validate_position(position)
         bookmark_js = f"""
-    var pos = parseInt("{position}");
-    var r = d.createRange({{start: pos, end: pos}});
+    var r = d.createRange({{start: {pos_int}, end: {pos_int}}});
     r.content = text;
 """
 
@@ -483,7 +488,7 @@ JSON.stringify({{inserted: true, length: text.length}});
 
 
 def mac_delete_text(
-    filename: str = None,
+    filename: Optional[str] = None,
     start: int = 0,
     end: int = 0,
     track_changes: bool = False,
@@ -507,7 +512,7 @@ JSON.stringify({{deleted: true, text: deleted, start: {start}, end: {end}}});
 
 
 def mac_replace_text(
-    filename: str = None,
+    filename: Optional[str] = None,
     find_text: str = "",
     replace_text: str = "",
     match_case: bool = False,
@@ -548,22 +553,22 @@ JSON.stringify({{replaced: result, find: "{escaped_find}", replaceWith: "{escape
 
 
 def mac_format_text(
-    filename: str = None,
-    start: int = None,
-    end: int = None,
-    start_paragraph: int = None,
-    end_paragraph: int = None,
-    bold: bool = None,
-    italic: bool = None,
-    underline: bool = None,
-    strikethrough: bool = None,
-    font_name: str = None,
-    font_size: float = None,
-    font_color: str = None,
-    highlight_color: str = None,
-    style_name: str = None,
-    paragraph_alignment: str = None,
-    page_break_before: bool = None,
+    filename: Optional[str] = None,
+    start: Optional[int] = None,
+    end: Optional[int] = None,
+    start_paragraph: Optional[int] = None,
+    end_paragraph: Optional[int] = None,
+    bold: Optional[bool] = None,
+    italic: Optional[bool] = None,
+    underline: Optional[bool] = None,
+    strikethrough: Optional[bool] = None,
+    font_name: Optional[str] = None,
+    font_size: Optional[float] = None,
+    font_color: Optional[str] = None,
+    highlight_color: Optional[int] = None,
+    style_name: Optional[str] = None,
+    paragraph_alignment: Optional[str] = None,
+    page_break_before: Optional[bool] = None,
     preserve_direct_formatting: bool = False,
     track_changes: bool = False,
 ) -> str:
@@ -581,7 +586,7 @@ var endP = d.paragraphs[{ep}].textObject.endOfContent();
 var r = d.createRange({{start: startP, end: endP}});
 """
     else:
-        return json.dumps({"error": "Must provide start/end or start_paragraph"})
+        return json.dumps({"success": False, "error": "Must provide start/end or start_paragraph"})
 
     # Build formatting JS
     fmt_lines = []
@@ -600,7 +605,7 @@ var r = d.createRange({{start: startP, end: endP}});
     if font_color:
         fmt_lines.append(f'r.fontObject.color = "{_escape_js(font_color)}";')
     if highlight_color:
-        fmt_lines.append(f'r.highlightColorIndex = "{_escape_js(highlight_color)}";')
+        fmt_lines.append(f"r.highlightColorIndex = {int(highlight_color)};")
     if style_name:
         fmt_lines.append(f'r.style = "{_escape_js(style_name)}";')
     if paragraph_alignment:
@@ -624,7 +629,7 @@ JSON.stringify({{formatted: true}});
 """)
 
 
-def mac_toggle_track_changes(filename: str = None, enable: bool = True) -> str:
+def mac_toggle_track_changes(filename: Optional[str] = None, enable: bool = True) -> str:
     """Toggle track changes on/off."""
     finder = _doc_finder_js(filename)
     return _run_jxa(f"""
@@ -638,7 +643,7 @@ JSON.stringify({{trackRevisions: d.trackRevisions()}});
 # ── Comments ─────────────────────────────────────────────────────────────
 
 
-def mac_get_comments(filename: str = None) -> str:
+def mac_get_comments(filename: Optional[str] = None) -> str:
     """Get all comments from document."""
     finder = _doc_finder_js(filename)
     return _run_jxa(f"""
@@ -661,35 +666,32 @@ JSON.stringify({{comments: result, count: result.length}});
 
 
 def mac_add_comment(
-    filename: str = None,
-    start: int = None,
-    end: int = None,
-    paragraph_index: int = None,
+    filename: Optional[str] = None,
+    start: Optional[int] = None,
+    end: Optional[int] = None,
+    paragraph_index: Optional[int] = None,
     text: str = "",
-    author: str = None,
+    author: Optional[str] = None,
 ) -> str:
     """Add a comment to a text range."""
-    finder = _doc_finder_js(filename)
-    escaped_text = _escape_js(text)
+    _doc_finder_js(filename)
+    _escape_js(text)
 
     if start is not None and end is not None:
-        range_js = f"var r = d.createRange({{start: {start}, end: {end}}});"
+        pass
     elif paragraph_index is not None:
-        range_js = f"""
-var p = d.paragraphs[{paragraph_index}];
-var r = p.textObject;
-"""
+        pass
     else:
-        return json.dumps({"error": "Must provide start/end or paragraph_index"})
+        return json.dumps({"success": False, "error": "Must provide start/end or paragraph_index"})
 
     # JXA's make() doesn't work for Word comments — use AppleScript
     escaped_as_text = _escape_as(text)
     if start is not None and end is not None:
         range_as = f"set r to create range active document start {start} end {end}"
     elif paragraph_index is not None:
-        range_as = f"set r to text object of paragraph {paragraph_index + 1} of active document"
+        range_as = f"set r to text object of paragraph {paragraph_index} of active document"
     else:
-        return json.dumps({"error": "Must provide start/end or paragraph_index"})
+        return json.dumps({"success": False, "error": "Must provide start/end or paragraph_index"})
 
     result = _run_applescript(f'''
 tell application "Microsoft Word"
@@ -701,7 +703,7 @@ end tell
     return json.dumps({"added": True, "commentCount": int(result)})
 
 
-def mac_delete_comment(filename: str = None, comment_index: int = 0) -> str:
+def mac_delete_comment(filename: Optional[str] = None, comment_index: int = 0) -> str:
     """Delete a comment by index."""
     finder = _doc_finder_js(filename)
     return _run_jxa(f"""
@@ -716,7 +718,7 @@ JSON.stringify({{deleted: true, remaining: d.wordComments.length}});
 # ── Revisions ────────────────────────────────────────────────────────────
 
 
-def mac_list_revisions(filename: str = None) -> str:
+def mac_list_revisions(filename: Optional[str] = None) -> str:
     """List all tracked changes."""
     finder = _doc_finder_js(filename)
     return _run_jxa(f"""
@@ -736,7 +738,7 @@ JSON.stringify({{revisions: result, count: revs.length}});
 """)
 
 
-def mac_accept_revisions(filename: str = None, author: str = None, revision_ids: list = None) -> str:
+def mac_accept_revisions(filename: Optional[str] = None, author: Optional[str] = None, revision_ids: Optional[list] = None) -> str:
     """Accept tracked changes."""
     finder = _doc_finder_js(filename)
     if revision_ids:
@@ -777,7 +779,7 @@ JSON.stringify({{accepted: "all"}});
 """)
 
 
-def mac_reject_revisions(filename: str = None, author: str = None, revision_ids: list = None) -> str:
+def mac_reject_revisions(filename: Optional[str] = None, author: Optional[str] = None, revision_ids: Optional[list] = None) -> str:
     """Reject tracked changes."""
     finder = _doc_finder_js(filename)
     if revision_ids:
@@ -821,15 +823,15 @@ JSON.stringify({{rejected: "all"}});
 
 
 def mac_set_page_layout(
-    filename: str = None,
+    filename: Optional[str] = None,
     section_index: int = 0,
-    orientation: str = None,
-    page_width: float = None,
-    page_height: float = None,
-    top_margin: float = None,
-    bottom_margin: float = None,
-    left_margin: float = None,
-    right_margin: float = None,
+    orientation: Optional[str] = None,
+    page_width: Optional[float] = None,
+    page_height: Optional[float] = None,
+    top_margin: Optional[float] = None,
+    bottom_margin: Optional[float] = None,
+    left_margin: Optional[float] = None,
+    right_margin: Optional[float] = None,
 ) -> str:
     """Set page layout for a section."""
     finder = _doc_finder_js(filename)
@@ -837,17 +839,17 @@ def mac_set_page_layout(
     if orientation:
         props.append(f'ps.orientation = "orient {orientation}";')
     if page_width is not None:
-        props.append(f"ps.pageWidth = {page_width};")
+        props.append(f"ps.pageWidth = {page_width * 72.0};")
     if page_height is not None:
-        props.append(f"ps.pageHeight = {page_height};")
+        props.append(f"ps.pageHeight = {page_height * 72.0};")
     if top_margin is not None:
-        props.append(f"ps.topMargin = {top_margin};")
+        props.append(f"ps.topMargin = {top_margin * 72.0};")
     if bottom_margin is not None:
-        props.append(f"ps.bottomMargin = {bottom_margin};")
+        props.append(f"ps.bottomMargin = {bottom_margin * 72.0};")
     if left_margin is not None:
-        props.append(f"ps.leftMargin = {left_margin};")
+        props.append(f"ps.leftMargin = {left_margin * 72.0};")
     if right_margin is not None:
-        props.append(f"ps.rightMargin = {right_margin};")
+        props.append(f"ps.rightMargin = {right_margin * 72.0};")
     props_js = "\n    ".join(props)
 
     return _run_jxa(f"""
@@ -867,11 +869,11 @@ JSON.stringify({{
 
 
 def mac_add_header_footer(
-    filename: str = None,
+    filename: Optional[str] = None,
     section_index: int = 0,
-    header_text: str = None,
-    footer_text: str = None,
-    alignment: str = None,
+    header_text: Optional[str] = None,
+    footer_text: Optional[str] = None,
+    alignment: Optional[str] = None,
 ) -> str:
     """Add header and/or footer text."""
     finder = _doc_finder_js(filename)
@@ -897,7 +899,7 @@ JSON.stringify({{added: true}});
 """)
 
 
-def mac_add_section_break(filename: str = None, break_type: str = "section break next page") -> str:
+def mac_add_section_break(filename: Optional[str] = None, break_type: str = "section break next page") -> str:
     """Insert a section break."""
     finder = _doc_finder_js(filename)
     escaped_type = _escape_js(break_type)
@@ -911,21 +913,21 @@ JSON.stringify({{sections: d.sections.length}});
 
 
 def mac_set_paragraph_spacing(
-    filename: str = None,
-    paragraph_index: int = None,
-    start_paragraph: int = None,
-    end_paragraph: int = None,
-    space_before: float = None,
-    space_after: float = None,
-    line_spacing: float = None,
-    keep_with_next: bool = None,
-    keep_together: bool = None,
-    alignment: str = None,
+    filename: Optional[str] = None,
+    paragraph_index: Optional[int] = None,
+    start_paragraph: Optional[int] = None,
+    end_paragraph: Optional[int] = None,
+    space_before: Optional[float] = None,
+    space_after: Optional[float] = None,
+    line_spacing: Optional[float] = None,
+    keep_with_next: Optional[bool] = None,
+    keep_together: Optional[bool] = None,
+    alignment: Optional[str] = None,
 ) -> str:
     """Set paragraph spacing and properties."""
     finder = _doc_finder_js(filename)
-    start_p = paragraph_index if paragraph_index is not None else (start_paragraph or 0)
-    end_p = end_paragraph if end_paragraph is not None else start_p
+    start_p = max(0, (paragraph_index or start_paragraph or 1) - 1)
+    end_p = max(0, (end_paragraph or (paragraph_index or start_paragraph or 1)) - 1)
 
     props = []
     if space_before is not None:
@@ -953,7 +955,7 @@ JSON.stringify({{updated: true, from: {start_p}, to: {end_p}}});
 """)
 
 
-def mac_add_bookmark(filename: str = None, paragraph_index: int = 0, bookmark_name: str = "Bookmark") -> str:
+def mac_add_bookmark(filename: Optional[str] = None, paragraph_index: int = 0, bookmark_name: str = "Bookmark") -> str:
     """Create a named bookmark."""
     finder = _doc_finder_js(filename)
     escaped_name = _escape_js(bookmark_name)
@@ -971,11 +973,11 @@ JSON.stringify({{added: true, name: "{escaped_name}"}});
 
 
 def mac_add_table(
-    filename: str = None,
+    filename: Optional[str] = None,
     rows: int = 3,
     cols: int = 3,
     position: str = "end",
-    data: list = None,
+    data: Optional[list] = None,
     track_changes: bool = False,
 ) -> str:
     """Add a table to the document."""
@@ -1024,12 +1026,12 @@ JSON.stringify({{added: true, tables: d.tables.length}});
 
 
 def mac_modify_table(
-    filename: str = None,
+    filename: Optional[str] = None,
     table_index: int = 0,
     operation: str = "get_info",
-    row: int = None,
-    col: int = None,
-    text: str = None,
+    row: Optional[int] = None,
+    col: Optional[int] = None,
+    text: Optional[str] = None,
     track_changes: bool = False,
 ) -> str:
     """Modify table structure or content."""
@@ -1091,13 +1093,13 @@ app.delete(t.rows[targetRow - 1]);
 JSON.stringify({{deleted: true, rows: t.rows.length}});
 """)
 
-    return json.dumps({"error": f"Unknown operation: {operation}"})
+    return json.dumps({"success": False, "error": f"Unknown operation: {operation}"})
 
 
 # ── Screen Capture ───────────────────────────────────────────────────────
 
 
-def mac_screen_capture(filename: str = None, output_path: str = "/tmp/word_capture.png") -> str:
+def mac_screen_capture(filename: Optional[str] = None, output_path: str = "/tmp/word_capture.png") -> str:
     """Capture the Word window on macOS."""
     # Activate Word
     _run_jxa("""
@@ -1127,4 +1129,4 @@ app.activate();
     if os.path.exists(output_path):
         size = os.path.getsize(output_path)
         return json.dumps({"captured": True, "path": output_path, "size": size})
-    return json.dumps({"error": "Screen capture failed"})
+    return json.dumps({"success": False, "error": "Screen capture failed"})

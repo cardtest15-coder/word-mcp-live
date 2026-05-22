@@ -1,13 +1,14 @@
 """
 Document creation and manipulation tools for Word Document Server.
 """
+import logging
 import os
 import json
-from typing import Dict, List, Optional, Any
+from typing import List, Optional
 from docx import Document
 
 from word_document_server.utils.file_utils import check_file_writeable, ensure_docx_extension, create_document_copy
-from word_document_server.utils.document_utils import get_document_properties, extract_document_text, get_document_structure, get_document_xml, insert_header_near_text, insert_line_or_paragraph_near_text
+from word_document_server.utils.document_utils import get_document_properties, extract_document_text, get_document_structure, get_document_xml
 from word_document_server.core.styles import ensure_heading_style, ensure_table_style
 
 
@@ -188,8 +189,8 @@ async def merge_documents(target_filename: str, source_filenames: List[str], add
                 try:
                     if paragraph.style and paragraph.style.name in target_doc.styles:
                         new_paragraph.style = target_doc.styles[paragraph.style.name]
-                except:
-                    pass
+                except Exception as e:
+                    logging.getLogger(__name__).warning("Could not match paragraph style: %s", e)
                 
                 # Copy run formatting
                 for i, run in enumerate(paragraph.runs):

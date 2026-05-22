@@ -11,9 +11,6 @@ Reference: Anthropic docx skill SKILL.md tracked changes patterns.
 from word_document_server.defaults import DEFAULT_AUTHOR
 
 import copy
-import json
-import random
-import re
 import zipfile
 from datetime import datetime, timezone
 from io import BytesIO
@@ -27,7 +24,8 @@ WORD_NS = "http://schemas.openxmlformats.org/wordprocessingml/2006/main"
 NSMAP = {"w": WORD_NS}
 
 # Qualified name helpers
-W = lambda tag: f"{{{WORD_NS}}}{tag}"
+def W(tag):
+    return f"{{{WORD_NS}}}{tag}"
 
 
 def _generate_id(root: etree._Element) -> int:

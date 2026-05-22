@@ -6,9 +6,10 @@ password protection, restricted editing, and digital signatures.
 """
 import os
 import hashlib
+import bcrypt
 import datetime
 import io 
-from typing import List, Optional, Dict, Any
+from typing import List, Optional
 from docx import Document
 import msoffcrypto 
 
@@ -100,7 +101,7 @@ async def add_restricted_editing(filename: str, password: str, editable_sections
     try:
         async with get_file_lock(filename):
             # Hash the password for security
-            password_hash = hashlib.sha256(password.encode()).hexdigest()
+            password_hash = bcrypt.hashpw(password.encode(), bcrypt.gensalt()).decode()
 
             # Add protection info to metadata
             success = add_protection_info(
@@ -145,26 +146,25 @@ async def add_digital_signature(filename: str, signer_name: str, reason: Optiona
             # Create signature info
             signature_info = create_signature_info(doc, signer_name, reason)
 
-            # Add protection info to metadata
+            # Add a visible signature block to the document
+            doc.add_paragraph("").add_run()  # Add empty paragraph for spacing
+            signature_para = doc.add_paragraph()
+            signature_para.add_run(f"Digitally signed by: {signer_name}").bold = True
+            if reason:
+                signature_para.add_run(f"\nReason: {reason}")
+            signature_para.add_run(f"\nDate: {datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+            signature_para.add_run(f"\nSignature ID: {signature_info['content_hash'][:8]}")
+
+            # Save the document with the visible signature BEFORE writing protection metadata
+            doc.save(filename)
+
+            # Add protection info to metadata (may use _save_document_xml internally)
             success = add_protection_info(
                 filename,
                 protection_type="signature",
                 password_hash="",  # No password for signature-only
                 signature_info=signature_info
             )
-
-            if success:
-                # Add a visible signature block to the document
-                doc.add_paragraph("").add_run()  # Add empty paragraph for spacing
-                signature_para = doc.add_paragraph()
-                signature_para.add_run(f"Digitally signed by: {signer_name}").bold = True
-                if reason:
-                    signature_para.add_run(f"\nReason: {reason}")
-                signature_para.add_run(f"\nDate: {datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
-                signature_para.add_run(f"\nSignature ID: {signature_info['content_hash'][:8]}")
-
-                # Save the document with the visible signature
-                doc.save(filename)
 
         if success:
             return f"Digital signature added to document {filename}"
@@ -264,7 +264,7 @@ async def unprotect_document(filename: str, password: str) -> str:
 
     except msoffcrypto.exceptions.InvalidKeyError:
          return f"Failed to decrypt document {filename}: Incorrect password."
-    except msoffcrypto.exceptions.InvalidFormatError:
+    except msoffcrypto.exceptions.FileFormatError:
          return f"Failed to decrypt document {filename}: File is not encrypted or is not a supported Office format."
     except Exception as e:
         # Attempt to restore encrypted file content on failure

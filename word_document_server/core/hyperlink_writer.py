@@ -18,9 +18,26 @@ WORD_NS = "http://schemas.openxmlformats.org/wordprocessingml/2006/main"
 REL_NS = "http://schemas.openxmlformats.org/package/2006/relationships"
 R_NS = "http://schemas.openxmlformats.org/officeDocument/2006/relationships"
 
-W = lambda tag: f"{{{WORD_NS}}}{tag}"
+def W(tag):
+    return f"{{{WORD_NS}}}{tag}"
 
 HYPERLINK_REL_TYPE = "http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink"
+
+_ALLOWED_SCHEMES = {"http", "https", "mailto", "ftp"}
+
+
+def _validate_url(url: str) -> None:
+    scheme = url.split(":", 1)[0].lower().strip()
+    if scheme and scheme not in _ALLOWED_SCHEMES:
+        raise ValueError(
+            f"URL scheme '{scheme}:' not allowed. "
+            f"Permitted schemes: {', '.join(sorted(_ALLOWED_SCHEMES))}"
+        )
+    if url.startswith("//") or url.startswith("\\\\"):
+        raise ValueError(
+            "SMB/UNC paths not allowed in hyperlinks. "
+            "Use http:// or https:// URLs only."
+        )
 
 
 def _get_run_text(run: etree._Element) -> str:
@@ -108,6 +125,11 @@ def add_hyperlink_to_doc(
     Returns:
         Dict with success status and details
     """
+    try:
+        _validate_url(url)
+    except ValueError as e:
+        return {"success": False, "error": str(e)}
+
     filepath = Path(filepath)
     zip_bytes = filepath.read_bytes()
 
@@ -235,7 +257,18 @@ def add_hyperlink_to_doc(
         at.set("{http://www.w3.org/XML/1998/namespace}space", "preserve")
         parent.insert(insert_idx + offset, after_run)
 
-    # --- Serialize and write back ---
+    _write_doc_back(filepath, zip_bytes, doc_root, rels_root)
+
+    return {
+        "success": True,
+        "text": text,
+        "url": url,
+        "relationship_id": rid,
+        "message": f"Added hyperlink to '{text}' pointing to {url}",
+    }
+
+
+def _write_doc_back(filepath: Path, zip_bytes: bytes, doc_root, rels_root):
     new_doc_xml = etree.tostring(doc_root, xml_declaration=True, encoding="UTF-8", standalone=True)
     new_rels_xml = etree.tostring(rels_root, xml_declaration=True, encoding="UTF-8", standalone=True)
 
@@ -252,10 +285,93 @@ def add_hyperlink_to_doc(
 
     filepath.write_bytes(buffer.getvalue())
 
+
+def insert_hyperlink_to_doc(
+    filepath: str,
+    display_text: str,
+    url: str,
+    paragraph_index: Optional[int] = None,
+) -> dict:
+    """Insert a new hyperlink (with display text) into a Word document.
+
+    Unlike add_hyperlink_to_doc which converts existing text, this creates
+    a new hyperlink element appended to the target paragraph.
+
+    Args:
+        filepath: Path to .docx file
+        display_text: The visible text of the hyperlink
+        url: The URL the hyperlink should point to
+        paragraph_index: Paragraph to insert into (0-based). None = last paragraph.
+
+    Returns:
+        Dict with success status and details
+    """
+    try:
+        _validate_url(url)
+    except ValueError as e:
+        return {"success": False, "error": str(e)}
+
+    filepath = Path(filepath)
+    zip_bytes = filepath.read_bytes()
+
+    doc_xml_bytes = _load_zip_part(zip_bytes, "word/document.xml")
+    if doc_xml_bytes is None:
+        return {"success": False, "error": "Cannot find word/document.xml"}
+
+    doc_root = etree.fromstring(doc_xml_bytes)
+    body = doc_root.find(W("body"))
+    if body is None:
+        return {"success": False, "error": "Document has no body element"}
+
+    paragraphs = body.findall(f".//{W('p')}")
+    if not paragraphs:
+        return {"success": False, "error": "Document has no paragraphs"}
+
+    if paragraph_index is not None:
+        if paragraph_index < 0 or paragraph_index >= len(paragraphs):
+            return {"success": False, "error": f"Paragraph index {paragraph_index} out of range (0-{len(paragraphs)-1})"}
+        target_p = paragraphs[paragraph_index]
+    else:
+        target_p = paragraphs[-1]
+
+    rels_bytes = _load_zip_part(zip_bytes, "word/_rels/document.xml.rels")
+    if rels_bytes is None:
+        return {"success": False, "error": "Cannot find document.xml.rels"}
+
+    rels_root = etree.fromstring(rels_bytes)
+    rid = f"rId{_get_next_rid(rels_root)}"
+
+    new_rel = etree.SubElement(rels_root, "{%s}Relationship" % REL_NS)
+    new_rel.set("Id", rid)
+    new_rel.set("Type", HYPERLINK_REL_TYPE)
+    new_rel.set("Target", url)
+    new_rel.set("TargetMode", "External")
+
+    hyperlink_elem = etree.Element(W("hyperlink"))
+    hyperlink_elem.set("{%s}id" % R_NS, rid)
+
+    h_run = etree.SubElement(hyperlink_elem, W("r"))
+    h_rpr = etree.SubElement(h_run, W("rPr"))
+    h_style = etree.SubElement(h_rpr, W("rStyle"))
+    h_style.set(W("val"), "Hyperlink")
+    h_color = etree.SubElement(h_rpr, W("color"))
+    h_color.set(W("val"), "0563C1")
+    h_color.set(W("themeColor"), "hyperlink")
+    h_u = etree.SubElement(h_rpr, W("u"))
+    h_u.set(W("val"), "single")
+
+    h_t = etree.SubElement(h_run, W("t"))
+    h_t.text = display_text
+    h_t.set("{http://www.w3.org/XML/1998/namespace}space", "preserve")
+
+    target_p.append(hyperlink_elem)
+
+    _write_doc_back(filepath, zip_bytes, doc_root, rels_root)
+
     return {
         "success": True,
-        "text": text,
+        "text": display_text,
         "url": url,
         "relationship_id": rid,
-        "message": f"Added hyperlink to '{text}' pointing to {url}",
+        "message": f"Inserted hyperlink '{display_text}' pointing to {url}",
     }

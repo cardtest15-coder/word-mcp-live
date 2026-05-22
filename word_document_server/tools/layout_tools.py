@@ -8,10 +8,10 @@ import os
 from typing import Optional
 
 from docx import Document
-from docx.shared import Pt, Inches, Cm, Emu
+from docx.shared import Pt, Inches
 from docx.enum.section import WD_ORIENT
 from docx.enum.text import WD_ALIGN_PARAGRAPH
-from docx.oxml.ns import qn, nsdecls
+from docx.oxml.ns import nsdecls
 from docx.oxml import parse_xml
 
 from word_document_server.utils.file_utils import check_file_writeable, ensure_docx_extension, get_file_lock
@@ -28,13 +28,13 @@ _ALIGN_MAP = {
 async def set_page_layout(
     filename: str,
     section_index: int = 0,
-    orientation: str = None,
-    page_width_inches: float = None,
-    page_height_inches: float = None,
-    margin_top_inches: float = None,
-    margin_bottom_inches: float = None,
-    margin_left_inches: float = None,
-    margin_right_inches: float = None,
+    orientation: Optional[str] = None,
+    page_width_inches: Optional[float] = None,
+    page_height_inches: Optional[float] = None,
+    margin_top_inches: Optional[float] = None,
+    margin_bottom_inches: Optional[float] = None,
+    margin_left_inches: Optional[float] = None,
+    margin_right_inches: Optional[float] = None,
 ) -> str:
     """Set page layout for a document section.
 
@@ -106,14 +106,14 @@ async def set_page_layout(
         })
 
     except Exception as e:
-        return json.dumps({"error": str(e)})
+        return json.dumps({"success": False, "error": str(e)})
 
 
 async def add_header_footer(
     filename: str,
     section_index: int = 0,
-    header_text: str = None,
-    footer_text: str = None,
+    header_text: Optional[str] = None,
+    footer_text: Optional[str] = None,
     header_alignment: str = "center",
     footer_alignment: str = "center",
 ) -> str:
@@ -169,7 +169,7 @@ async def add_header_footer(
         return json.dumps({"success": True, "added": added, "section": section_index})
 
     except Exception as e:
-        return json.dumps({"error": str(e)})
+        return json.dumps({"success": False, "error": str(e)})
 
 
 def _add_field(paragraph, field_code: str):
@@ -256,7 +256,7 @@ async def add_page_numbers(
         })
 
     except Exception as e:
-        return json.dumps({"error": str(e)})
+        return json.dumps({"success": False, "error": str(e)})
 
 
 async def add_section_break(
@@ -302,18 +302,18 @@ async def add_section_break(
         })
 
     except Exception as e:
-        return json.dumps({"error": str(e)})
+        return json.dumps({"success": False, "error": str(e)})
 
 
 async def set_paragraph_spacing(
     filename: str,
-    paragraph_index: int = None,
-    start_paragraph: int = None,
-    end_paragraph: int = None,
-    space_before_pt: float = None,
-    space_after_pt: float = None,
-    line_spacing: float = None,
-    line_spacing_rule: str = None,
+    paragraph_index: Optional[int] = None,
+    start_paragraph: Optional[int] = None,
+    end_paragraph: Optional[int] = None,
+    space_before_pt: Optional[float] = None,
+    space_after_pt: Optional[float] = None,
+    line_spacing: Optional[float] = None,
+    line_spacing_rule: Optional[str] = None,
 ) -> str:
     """Set paragraph spacing for one or a range of paragraphs.
 
@@ -385,7 +385,7 @@ async def set_paragraph_spacing(
         })
 
     except Exception as e:
-        return json.dumps({"error": str(e)})
+        return json.dumps({"success": False, "error": str(e)})
 
 
 async def add_bookmark(
@@ -439,7 +439,7 @@ async def add_bookmark(
         })
 
     except Exception as e:
-        return json.dumps({"error": str(e)})
+        return json.dumps({"success": False, "error": str(e)})
 
 
 async def add_watermark(
@@ -542,4 +542,4 @@ async def add_watermark(
         })
 
     except Exception as e:
-        return json.dumps({"error": str(e)})
+        return json.dumps({"success": False, "error": str(e)})

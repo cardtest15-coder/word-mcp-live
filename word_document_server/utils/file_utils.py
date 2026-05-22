@@ -6,6 +6,7 @@ import os
 import sys
 from typing import Tuple, Optional
 import shutil
+from word_document_server.utils.path_validation import validate_path
 
 # Per-file locks to prevent concurrent read-modify-write on the same document
 _file_locks: dict[str, asyncio.Lock] = {}
@@ -33,6 +34,10 @@ def check_file_writeable(filepath: str) -> Tuple[bool, str]:
     Returns:
         Tuple of (is_writeable, error_message)
     """
+    try:
+        filepath = validate_path(filepath)
+    except ValueError as e:
+        return False, str(e)
     # If file doesn't exist, check if directory is writeable
     if not os.path.exists(filepath):
         directory = os.path.dirname(filepath)
@@ -71,6 +76,10 @@ def create_document_copy(source_path: str, dest_path: Optional[str] = None) -> T
     Returns:
         Tuple of (success, message, new_filepath)
     """
+    try:
+        source_path = validate_path(source_path)
+    except ValueError as e:
+        return False, str(e), None
     if not os.path.exists(source_path):
         return False, f"Source document {source_path} does not exist", None
     
@@ -79,6 +88,11 @@ def create_document_copy(source_path: str, dest_path: Optional[str] = None) -> T
         base, ext = os.path.splitext(source_path)
         dest_path = f"{base}_copy{ext}"
     
+    try:
+        dest_path = validate_path(dest_path)
+    except ValueError as e:
+        return False, str(e), None
+
     try:
         # Simple file copy
         shutil.copy2(source_path, dest_path)
@@ -97,6 +111,9 @@ def ensure_docx_extension(filename: str) -> str:
     Returns:
         Filename with .docx extension
     """
+    if not filename:
+        return filename
+    filename = validate_path(filename)
     if not filename.endswith('.docx'):
         return filename + '.docx'
     return filename

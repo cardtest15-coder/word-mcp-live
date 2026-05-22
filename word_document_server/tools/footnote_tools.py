@@ -21,8 +21,7 @@ from word_document_server.core.footnotes import (
     customize_footnote_formatting,
     add_footnote_robust,
     delete_footnote_robust,
-    validate_document_footnotes,
-    add_footnote_at_paragraph_end  # Compatibility function
+    validate_document_footnotes  # Compatibility function
 )
 
 
@@ -66,7 +65,7 @@ async def add_footnote_to_document(filename: str, paragraph_index: int, footnote
                 footnote.text = ""
 
                 # Create the footnote reference
-                reference = footnote.add_footnote(footnote_text)
+                footnote.add_footnote(footnote_text)
 
                 doc.save(filename)
                 return f"Footnote added to paragraph {paragraph_index} in {filename}"
@@ -200,7 +199,6 @@ async def convert_footnotes_to_endnotes_in_document(filename: str) -> str:
             doc.add_heading("Endnotes:", level=1)
 
             # Create a placeholder for endnote content, we'll fill it later
-            endnote_content = []
 
             # Find the footnote text at the bottom of the page
 
@@ -408,7 +406,7 @@ async def customize_footnote_style(filename: str, numbering_format: str = "1, 2,
             format_symbols = get_format_symbols(numbering_format, len(footnote_refs) + start_number)
 
             # Apply custom formatting to footnotes
-            count = customize_footnote_formatting(doc, footnote_refs, format_symbols, start_number, footnote_style)
+            customize_footnote_formatting(doc, footnote_refs, format_symbols, start_number, footnote_style)
 
             # Save the document
             doc.save(filename)
@@ -618,104 +616,4 @@ async def validate_footnotes_tool(filename: str) -> Dict[str, Any]:
     }
 
 
-# ============================================================================
-# Compatibility wrappers for robust tools (maintain backward compatibility)
-# ============================================================================
 
-async def add_footnote_to_document_robust(
-    filename: str,
-    paragraph_index: int,
-    footnote_text: str
-) -> str:
-    """
-    Robust version of add_footnote_to_document.
-    Maintains backward compatibility with existing API.
-    """
-    # Lock acquired inside add_footnote_robust_tool
-    result = await add_footnote_robust_tool(
-        filename=filename,
-        paragraph_index=paragraph_index,
-        footnote_text=footnote_text
-    )
-    return result["message"]
-
-
-async def add_footnote_after_text_robust(
-    filename: str,
-    search_text: str,
-    footnote_text: str,
-    output_filename: Optional[str] = None
-) -> str:
-    """
-    Robust version of add_footnote_after_text.
-    Maintains backward compatibility with existing API.
-    """
-    # Handle output filename by copying first if needed
-    working_file = filename
-    if output_filename:
-        import shutil
-        async with get_file_lock(filename):
-            shutil.copy2(filename, output_filename)
-        working_file = output_filename
-
-    # Lock on working_file acquired inside add_footnote_robust_tool
-    result = await add_footnote_robust_tool(
-        filename=working_file,
-        search_text=search_text,
-        footnote_text=footnote_text
-    )
-    return result["message"]
-
-
-async def add_footnote_before_text_robust(
-    filename: str,
-    search_text: str,
-    footnote_text: str,
-    output_filename: Optional[str] = None
-) -> str:
-    """
-    Robust version of add_footnote_before_text.
-    Note: Current robust implementation defaults to 'after' position.
-    """
-    # Handle output filename
-    working_file = filename
-    if output_filename:
-        import shutil
-        async with get_file_lock(filename):
-            shutil.copy2(filename, output_filename)
-        working_file = output_filename
-
-    # Lock on working_file acquired inside add_footnote_robust_tool
-    result = await add_footnote_robust_tool(
-        filename=working_file,
-        search_text=search_text,
-        footnote_text=footnote_text
-    )
-    return result["message"]
-
-
-async def delete_footnote_from_document_robust(
-    filename: str,
-    footnote_id: Optional[int] = None,
-    search_text: Optional[str] = None,
-    output_filename: Optional[str] = None
-) -> str:
-    """
-    Robust version of delete_footnote_from_document.
-    Maintains backward compatibility with existing API.
-    """
-    # Handle output filename
-    working_file = filename
-    if output_filename:
-        import shutil
-        async with get_file_lock(filename):
-            shutil.copy2(filename, output_filename)
-        working_file = output_filename
-
-    # Lock on working_file acquired inside delete_footnote_robust_tool
-    result = await delete_footnote_robust_tool(
-        filename=working_file,
-        footnote_id=footnote_id,
-        search_text=search_text
-    )
-    return result["message"]

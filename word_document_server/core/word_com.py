@@ -8,6 +8,7 @@ import os
 import sys
 import unicodedata
 from contextlib import contextmanager
+from typing import Optional
 
 
 def get_word_app():
@@ -38,9 +39,15 @@ def get_word_app():
         app_with_docs = _find_word_with_docs()
         if app_with_docs is not None:
             return app_with_docs
-        raise RuntimeError(
-            "Microsoft Word is not running. Please open Word first."
-        )
+        # Word not running — start it
+        try:
+            app = win32com.client.Dispatch("Word.Application")
+            app.Visible = True
+            return app
+        except Exception as e:
+            raise RuntimeError(
+                f"Cannot start Microsoft Word: {e}"
+            )
 
 
 def _find_word_with_docs():
@@ -108,7 +115,7 @@ def _find_word_with_docs():
     return None
 
 
-def find_document(app, filename: str = None):
+def find_document(app, filename: Optional[str] = None):
     """Find an open document by filename.
 
     Args:
@@ -123,6 +130,13 @@ def find_document(app, filename: str = None):
         ValueError: If the document is not found or no documents are open.
     """
     if app.Documents.Count == 0:
+        # No documents open — try to open the requested file
+        if filename and os.path.isfile(filename):
+            try:
+                doc = app.Documents.Open(os.path.abspath(filename))
+                return doc
+            except Exception as e:
+                raise ValueError(f"Cannot open document '{filename}': {e}")
         raise ValueError("No documents are open in Word")
 
     if not filename:
@@ -142,6 +156,16 @@ def find_document(app, filename: str = None):
             return doc
 
     open_docs = [app.Documents(i).Name for i in range(1, app.Documents.Count + 1)]
+    # Not found among open docs — try opening from disk
+    if filename and os.path.isfile(filename):
+        try:
+            doc = app.Documents.Open(os.path.abspath(filename))
+            return doc
+        except Exception as e:
+            raise ValueError(
+                f"Document '{filename}' is not open and cannot be opened: {e}. "
+                f"Open documents: {open_docs}"
+            )
     raise ValueError(
         f"Document '{filename}' is not open in Word. "
         f"Open documents: {open_docs}"
@@ -183,5 +207,48 @@ def undo_record(app, name: str):
         if rec is not None:
             try:
                 rec.EndCustomRecord()
+            except Exception:
+                pass
+
+
+@contextmanager
+def comtypes_word_app(visible: bool = False):
+    """Context manager that provides a Word Application via comtypes.
+
+    Reuses a running Word instance if available; otherwise creates a new one.
+    On exit, only calls Quit() if the instance was created by us (not already running).
+
+    Args:
+        visible: Whether to make the Word window visible. Default False.
+
+    Yields:
+        Tuple of (word_app, created_new: bool).
+
+    Usage::
+
+        with comtypes_word_app() as (word, created_new):
+            doc = word.Documents.Open(path)
+            doc.SaveAs2(out, FileFormat=8)
+            doc.Close()
+    """
+    if sys.platform != "win32":
+        raise RuntimeError("comtypes Word automation is only available on Windows")
+
+    import comtypes.client
+
+    created_new = False
+    word = None
+    try:
+        try:
+            word = comtypes.client.GetActiveObject("Word.Application")
+        except Exception:
+            word = comtypes.client.CreateObject("Word.Application")
+            created_new = True
+        word.Visible = visible
+        yield word, created_new
+    finally:
+        if created_new and word is not None:
+            try:
+                word.Quit()
             except Exception:
                 pass

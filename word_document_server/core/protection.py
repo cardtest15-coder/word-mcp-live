@@ -2,8 +2,10 @@
 Document protection functionality for Word Document Server.
 """
 import os
+import sys
 import json
 import hashlib
+import bcrypt
 import datetime
 from typing import Dict, List, Tuple, Optional, Any
 
@@ -47,6 +49,8 @@ def add_protection_info(doc_path: str, protection_type: str, password_hash: str,
     try:
         with open(metadata_path, 'w') as f:
             json.dump(protection_data, f, indent=2)
+        if sys.platform != "win32":
+            os.chmod(metadata_path, 0o600)
         
         # Apply actual document encryption if raw_password is provided
         if protection_type == "password" and raw_password:
@@ -77,6 +81,8 @@ def add_protection_info(doc_path: str, protection_type: str, password_hash: str,
                 protection_data["true_encryption"] = True
                 with open(metadata_path, 'w') as f:
                     json.dump(protection_data, f, indent=2)
+                if sys.platform != "win32":
+                    os.chmod(metadata_path, 0o600)
                     
             except Exception as e:
                 print(f"Encryption error: {str(e)}")
@@ -115,9 +121,14 @@ def verify_document_protection(doc_path: str, password: Optional[str] = None) ->
         
         # If password is provided, verify it
         if password:
-            password_hash = hashlib.sha256(password.encode()).hexdigest()
-            if password_hash != protection_data.get("password_hash"):
-                return False, "Incorrect password"
+            stored = protection_data.get("password_hash", "")
+            if stored.startswith(("$2a$", "$2b$", "$2y$")):
+                if not bcrypt.checkpw(password.encode(), stored.encode()):
+                    return False, "Incorrect password"
+            else:
+                legacy_hash = hashlib.sha256(password.encode()).hexdigest()
+                if legacy_hash != stored:
+                    return False, "Incorrect password"
         
         # Return protection type
         protection_type = protection_data.get("type", "unknown")

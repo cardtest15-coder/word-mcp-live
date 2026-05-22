@@ -24,8 +24,10 @@ W14_NS = "http://schemas.microsoft.com/office/word/2010/wordml"
 REL_NS = "http://schemas.openxmlformats.org/package/2006/relationships"
 CT_NS = "http://schemas.openxmlformats.org/package/2006/content-types"
 
-W = lambda tag: f"{{{WORD_NS}}}{tag}"
-W14 = lambda tag: f"{{{W14_NS}}}{tag}"
+def W(tag):
+    return f"{{{WORD_NS}}}{tag}"
+def W14(tag):
+    return f"{{{W14_NS}}}{tag}"
 
 COMMENTS_REL_TYPE = "http://schemas.openxmlformats.org/officeDocument/2006/relationships/comments"
 
@@ -209,11 +211,9 @@ def add_comment_to_doc(
 
     paragraphs = body.findall(f".//{W('p')}")
     match = None
-    match_para = None
     for p in paragraphs:
         match = _find_text_in_paragraph(p, target_text)
         if match is not None:
-            match_para = p
             break
 
     if match is None:

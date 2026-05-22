@@ -41,3 +41,26 @@ def reject_control_chars(label: str, text: str) -> None:
             "For paragraph marks / page breaks, use use_wildcards=True with "
             "^p / ^m."
         )
+
+
+def validate_position(value: str) -> int:
+    """Validate that a position value is a non-negative integer string.
+
+    Args:
+        value: The position string to validate.
+
+    Returns:
+        The validated integer.
+
+    Raises:
+        ValueError: If value is not a non-negative integer string.
+    """
+    if not value.strip():
+        raise ValueError("position must be a non-negative integer, got empty string")
+    try:
+        pos = int(value)
+    except (ValueError, TypeError):
+        raise ValueError(f"position must be a non-negative integer, got {value!r}")
+    if pos < 0:
+        raise ValueError(f"position must be a non-negative integer, got {pos}")
+    return pos

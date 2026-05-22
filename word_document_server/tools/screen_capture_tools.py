@@ -3,6 +3,7 @@
 import json
 import os
 import sys
+from typing import Optional
 
 _MAC_AVAILABLE = sys.platform == 'darwin'
 
@@ -64,7 +65,7 @@ def _capture_window_to_png(hwnd: int) -> bytes:
     return buf.getvalue()
 
 
-async def word_screen_capture(filename: str = None, output_path: str = None) -> str:
+async def word_screen_capture(filename: Optional[str] = None, output_path: Optional[str] = None) -> str:
     """Capture a screenshot of a Word document window.
 
     Args:
@@ -79,7 +80,7 @@ async def word_screen_capture(filename: str = None, output_path: str = None) -> 
         return mac_screen_capture(filename=filename, output_path=output_path)
 
     if sys.platform != "win32":
-        return json.dumps({"error": "Screen capture is only available on Windows"})
+        return json.dumps({"success": False, "error": "Screen capture is only available on Windows"})
 
     try:
         from word_document_server.core.word_com import get_word_app, find_document
@@ -92,7 +93,7 @@ async def word_screen_capture(filename: str = None, output_path: str = None) -> 
         hwnd = int(doc.ActiveWindow.Hwnd)
 
         if not hwnd:
-            return json.dumps({"error": "Could not get Word window handle"})
+            return json.dumps({"success": False, "error": "Could not get Word window handle"})
 
         png_bytes = _capture_window_to_png(hwnd)
 
@@ -123,4 +124,4 @@ async def word_screen_capture(filename: str = None, output_path: str = None) -> 
         )
 
     except Exception as e:
-        return json.dumps({"error": str(e)})
+        return json.dumps({"success": False, "error": str(e)})

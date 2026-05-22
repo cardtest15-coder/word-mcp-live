@@ -6,7 +6,6 @@ from Word documents using the python-docx library.
 """
 import datetime
 from typing import Dict, List, Optional, Any
-from docx import Document
 from docx.document import Document as DocumentType
 from docx.text.paragraph import Paragraph
 
@@ -49,7 +48,7 @@ def extract_all_comments(doc: DocumentType) -> List[Dict[str, Any]]:
             # Fallback: scan paragraphs for comment references
             comments = extract_comments_from_paragraphs(doc)
     
-    except Exception as e:
+    except Exception:
         # If direct access fails, try alternative approach
         comments = extract_comments_from_paragraphs(doc)
     
@@ -111,7 +110,7 @@ def extract_comment_data(comment_element, index: int) -> Optional[Dict[str, Any]
             try:
                 date = datetime.datetime.fromisoformat(date_str.replace('Z', '+00:00'))
                 date = date.isoformat()
-            except:
+            except (ValueError, TypeError):
                 date = date_str
         
         # Extract comment text
@@ -130,7 +129,7 @@ def extract_comment_data(comment_element, index: int) -> Optional[Dict[str, Any]
             'reference_text': ''
         }
     
-    except Exception as e:
+    except Exception:
         return None
 
 

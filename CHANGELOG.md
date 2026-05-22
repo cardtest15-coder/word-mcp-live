@@ -5,6 +5,32 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+- **71 new tools** (124 → 195) across Phase 1 and Phase 2 feature expansions
+- **Style tools** (6 file-based): `list_styles`, `get_style_details`, `apply_style`, `modify_style`, `delete_style`, `copy_styles_from_template`
+- **Column tools** (4 file-based): `set_section_columns`, `insert_column_break`, `get_section_layout`, `set_column_widths`
+- **Advanced table tools** (5 file-based): `delete_table`, `repeat_table_header`, `convert_table_to_text`, `convert_text_to_table`, `sort_table`
+- **Object insertion tools** (5 file-based): `update_table_of_contents`, `insert_text_box`, `insert_chart`, `insert_index`, `insert_citation`
+- **Export tools** (3 file-based + 3 live): `export_to_html`, `export_to_rtf`, `export_to_txt`, `word_live_export_to_html`, `word_live_export_to_rtf`, `word_live_export_to_txt`
+- **Merge tools** (2 file-based + 2 live): `compare_documents`, `mail_merge`, `word_live_compare_documents`, `word_live_mail_merge`
+- **Highlight tools** (2 file-based + 1 live): `highlight_text`, `remove_highlight`, `word_live_highlight_text`
+- **Field tools** (3 file-based + 3 live): `insert_field`, `update_fields`, `insert_content_control`, `word_live_insert_field`, `word_live_update_fields`, `word_live_insert_content_control`
+- **Property tools** (2 file-based + 2 live): `get_custom_properties`, `set_custom_property`, `word_live_get_custom_properties`, `word_live_set_custom_property`
+- **Page design tools** (6 file-based + 4 live): `set_different_first_page`, `set_odd_even_headers`, `set_tab_stops`, `clear_tab_stops`, `insert_drop_cap`, `set_page_borders`, `word_live_set_different_first_page`, `word_live_set_odd_even_headers`, `word_live_insert_drop_cap`, `word_live_set_page_borders`
+- **Extra live tools** (8): `word_live_spell_check`, `word_live_check_grammar`, `word_live_insert_table_of_figures`, `word_live_insert_shape`, `word_live_run_macro`, `word_live_print`, `word_live_get_doc_variable`, `word_live_set_doc_variable`
+- **13 live style/column/table/object tools**: `word_live_list_styles`, `word_live_apply_style`, `word_live_modify_style`, `word_live_set_section_columns`, `word_live_insert_column_break`, `word_live_get_section_layout`, `word_live_delete_table`, `word_live_repeat_table_header`, `word_live_sort_table`, `word_live_update_table_of_contents`, `word_live_insert_text_box`, `word_live_insert_chart`, `word_live_insert_index`
+- `comtypes_word_app` context manager in `word_com.py` — eliminates duplicate GetActiveObject/CreateObject/Quit boilerplate
+- 45 new unit tests for Phase 1+2 tools (`tests/test_phase2_tools.py`)
+
+### Fixed
+- `WD_COLOR_INDEX` mapping — `CYAN`/`MAGENTA`/`NONE` don't exist in python-docx; mapped to `TURQUOISE`/`PINK`/`AUTO`
+- `WD_TAB_LEADER.LEADER_NONE` doesn't exist; replaced with `WD_TAB_LEADER.SPACES`
+- `set_custom_property` — rewrote custom XML part handling using zipfile instead of broken `docx.opc.part.Part` constructor
+- 8 cross-module parameter/type mismatches (see session summary)
+- 93+ ruff auto-fixes (unused imports, f-string issues, ambiguous variable names)
+
 ## [1.6.0] - 2026-04-29
 
 ### Added

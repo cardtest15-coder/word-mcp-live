@@ -6,7 +6,9 @@ that python-docx cannot open.
 """
 
 import json
+import logging
 import sys
+from typing import Optional
 import time
 from difflib import SequenceMatcher
 
@@ -24,8 +26,13 @@ _paragraph_snapshots: dict[str, dict] = {}
 
 
 def _doc_key(doc) -> str:
-    """Return a stable, case-insensitive key for an open COM document."""
-    return doc.Name.lower()
+    """Return a stable, case-insensitive key for an open COM document.
+
+    Uses FullName (full path) rather than Name (basename) so that two
+    documents with the same filename in different directories do not
+    collide in snapshot dictionaries.
+    """
+    return doc.FullName.lower()
 
 
 def _read_paragraphs(doc) -> list[dict]:
@@ -55,7 +62,7 @@ def _get_snapshot(doc) -> dict | None:
 # ---------------------------------------------------------------------------
 
 
-async def word_live_take_snapshot(filename: str = None) -> str:
+async def word_live_take_snapshot(filename: Optional[str] = None) -> str:
     """[Windows only] Store a snapshot of the current document text for later diffing.
 
     Call this to set a baseline without returning the full text.
@@ -72,12 +79,12 @@ async def word_live_take_snapshot(filename: str = None) -> str:
         import json as _json
         result = _json.loads(mac_get_text(filename=filename))
         paras = [{"index": p["index"] + 1, "text": p["text"].rstrip("\r\x07")} for p in result["paragraphs"]]
-        doc_name = (filename or "active").lower()
-        _paragraph_snapshots[doc_name] = {"timestamp": time.time(), "paragraphs": paras}
-        return _json.dumps({"success": True, "document": filename or "active", "paragraph_count": len(paras), "snapshot_timestamp": _paragraph_snapshots[doc_name]["timestamp"], "message": "Snapshot stored. Use word_live_get_diff to see changes."}, ensure_ascii=False)
+        _paragraph_snapshots[(filename or "active").lower()] = {"timestamp": time.time(), "paragraphs": paras}
+        snap_key = (filename or "active").lower()
+        return _json.dumps({"success": True, "document": filename or "active", "paragraph_count": len(paras), "snapshot_timestamp": _paragraph_snapshots[snap_key]["timestamp"], "message": "Snapshot stored. Use word_live_get_diff to see changes."}, ensure_ascii=False)
 
     if sys.platform != "win32":
-        return json.dumps({"error": "Live tools are only available on Windows"})
+        return json.dumps({"success": False, "error": "Live tools are only available on Windows"})
 
     try:
         from word_document_server.core.word_com import get_word_app, find_document
@@ -97,10 +104,10 @@ async def word_live_take_snapshot(filename: str = None) -> str:
         }, ensure_ascii=False)
 
     except Exception as e:
-        return json.dumps({"error": str(e)})
+        return json.dumps({"success": False, "error": str(e)})
 
 
-async def word_live_get_diff(filename: str = None) -> str:
+async def word_live_get_diff(filename: Optional[str] = None) -> str:
     """[Windows only] Return only the paragraphs that changed since the last snapshot.
 
     Compares the current document text against the most recent snapshot
@@ -117,7 +124,7 @@ async def word_live_get_diff(filename: str = None) -> str:
         snapshot_age_seconds, and current_paragraph_count.
     """
     if sys.platform != "win32":
-        return json.dumps({"error": "Live tools are only available on Windows"})
+        return json.dumps({"success": False, "error": "Live tools are only available on Windows"})
 
     try:
         from word_document_server.core.word_com import get_word_app, find_document
@@ -127,7 +134,7 @@ async def word_live_get_diff(filename: str = None) -> str:
 
         snap = _get_snapshot(doc)
         if snap is None:
-            return json.dumps({
+            return json.dumps({"success": False,
                 "error": "No snapshot exists for this document. "
                          "Call word_live_take_snapshot first.",
             })
@@ -198,10 +205,10 @@ async def word_live_get_diff(filename: str = None) -> str:
         }, ensure_ascii=False)
 
     except Exception as e:
-        return json.dumps({"error": str(e)})
+        return json.dumps({"success": False, "error": str(e)})
 
 
-async def word_live_snapshot_status(filename: str = None) -> str:
+async def word_live_snapshot_status(filename: Optional[str] = None) -> str:
     """[Windows only] Check whether a snapshot exists for the document and how old it is.
 
     Args:
@@ -211,7 +218,7 @@ async def word_live_snapshot_status(filename: str = None) -> str:
         JSON with has_snapshot, age_seconds, and paragraph_count.
     """
     if sys.platform != "win32":
-        return json.dumps({"error": "Live tools are only available on Windows"})
+        return json.dumps({"success": False, "error": "Live tools are only available on Windows"})
 
     try:
         from word_document_server.core.word_com import get_word_app, find_document
@@ -236,7 +243,7 @@ async def word_live_snapshot_status(filename: str = None) -> str:
         })
 
     except Exception as e:
-        return json.dumps({"error": str(e)})
+        return json.dumps({"success": False, "error": str(e)})
 
 
 # ---------------------------------------------------------------------------
@@ -244,7 +251,7 @@ async def word_live_snapshot_status(filename: str = None) -> str:
 # ---------------------------------------------------------------------------
 
 
-async def word_live_get_text(filename: str = None) -> str:
+async def word_live_get_text(filename: Optional[str] = None) -> str:
     """Get all text from an open Word document, paragraph by paragraph.
 
     For documents with more than 200 paragraphs, only the first 3 pages are
@@ -262,7 +269,7 @@ async def word_live_get_text(filename: str = None) -> str:
         return mac_get_text(filename=filename)
 
     if sys.platform != "win32":
-        return json.dumps({"error": "Live tools are only available on Windows"})
+        return json.dumps({"success": False, "error": "Live tools are only available on Windows"})
 
     try:
         from word_document_server.core.word_com import get_word_app, find_document
@@ -299,13 +306,13 @@ async def word_live_get_text(filename: str = None) -> str:
         }, ensure_ascii=False)
 
     except Exception as e:
-        return json.dumps({"error": str(e)})
+        return json.dumps({"success": False, "error": str(e)})
 
 
 async def word_live_get_paragraph_format(
-    filename: str = None,
-    start_paragraph: int = None,
-    end_paragraph: int = None,
+    filename: Optional[str] = None,
+    start_paragraph: Optional[int] = None,
+    end_paragraph: Optional[int] = None,
     include_runs: bool = False,
 ) -> str:
     """[Windows only] Inspect paragraph formatting properties for diagnostics.
@@ -338,10 +345,10 @@ async def word_live_get_paragraph_format(
         return mac_get_paragraph_format(filename=filename, start_paragraph=start_paragraph, end_paragraph=end_paragraph, include_runs=include_runs)
 
     if sys.platform != "win32":
-        return json.dumps({"error": "Live tools are only available on Windows"})
+        return json.dumps({"success": False, "error": "Live tools are only available on Windows"})
 
     if start_paragraph is None:
-        return json.dumps({"error": "start_paragraph is required (1-indexed)"})
+        return json.dumps({"success": False, "error": "start_paragraph is required (1-indexed)"})
 
     if end_paragraph is None:
         end_paragraph = start_paragraph
@@ -354,7 +361,7 @@ async def word_live_get_paragraph_format(
 
         total_paras = doc.Paragraphs.Count
         if start_paragraph < 1 or end_paragraph > total_paras:
-            return json.dumps({
+            return json.dumps({"success": False,
                 "error": f"Range {start_paragraph}-{end_paragraph} out of bounds (doc has {total_paras} paragraphs)"
             })
 
@@ -401,14 +408,14 @@ async def word_live_get_paragraph_format(
                                           }.get(lf.ListType, f"type_{lf.ListType}")
                     info["list_level"] = lf.ListLevelNumber
                     info["list_string"] = lf.ListString
-            except Exception:
-                pass
+            except Exception as e:
+                logging.getLogger(__name__).warning("Could not read list format: %s", e)
 
             # Highlight
             try:
                 info["highlight_color"] = rng.HighlightColorIndex
-            except Exception:
-                pass
+            except Exception as e:
+                logging.getLogger(__name__).warning("Could not read highlight color: %s", e)
 
             # Per-run formatting (word-level detail)
             if include_runs:
@@ -421,19 +428,19 @@ async def word_live_get_paragraph_format(
                         w_italic = word.Font.Italic
                         w_fname = str(word.Font.Name) if word.Font.Name else ""
                         w_fsize = word.Font.Size if word.Font.Size else None
-                        fmt = {
+                        run_fmt = {
                             "bold": bool(w_bold) if w_bold != 9999999 else "mixed",
                             "italic": bool(w_italic) if w_italic != 9999999 else "mixed",
                             "font_name": w_fname if w_fname != "9999999" else "mixed",
                             "font_size": w_fsize if w_fsize != 9999999 else "mixed",
                         }
-                        if current_run and current_run["_fmt"] == fmt:
+                        if current_run and current_run["_fmt"] == run_fmt:
                             current_run["text"] += word.Text
                         else:
                             if current_run:
                                 del current_run["_fmt"]
                                 runs.append(current_run)
-                            current_run = {"text": word.Text, **fmt, "_fmt": fmt}
+                            current_run = {"text": word.Text, **run_fmt, "_fmt": run_fmt}
                     if current_run:
                         del current_run["_fmt"]
                         runs.append(current_run)
@@ -450,10 +457,10 @@ async def word_live_get_paragraph_format(
         }, ensure_ascii=False)
 
     except Exception as e:
-        return json.dumps({"error": str(e)})
+        return json.dumps({"success": False, "error": str(e)})
 
 
-async def word_live_get_info(filename: str = None) -> str:
+async def word_live_get_info(filename: Optional[str] = None) -> str:
     """Get document info from an open Word document.
 
     Args:
@@ -467,7 +474,7 @@ async def word_live_get_info(filename: str = None) -> str:
         return mac_get_info(filename=filename)
 
     if sys.platform != "win32":
-        return json.dumps({"error": "Live tools are only available on Windows"})
+        return json.dumps({"success": False, "error": "Live tools are only available on Windows"})
 
     try:
         from word_document_server.core.word_com import get_word_app, find_document
@@ -502,17 +509,17 @@ async def word_live_get_info(filename: str = None) -> str:
             info["author"] = str(props("Author").Value) if props("Author").Value else ""
             info["title"] = str(props("Title").Value) if props("Title").Value else ""
             info["subject"] = str(props("Subject").Value) if props("Subject").Value else ""
-        except Exception:
-            pass
+        except Exception as e:
+            logging.getLogger(__name__).warning("Could not read document properties: %s", e)
 
         return json.dumps({"success": True, **info}, ensure_ascii=False)
 
     except Exception as e:
-        return json.dumps({"error": str(e)})
+        return json.dumps({"success": False, "error": str(e)})
 
 
 async def word_live_find_text(
-    filename: str = None,
+    filename: Optional[str] = None,
     search_text: str = "",
     match_case: bool = False,
     whole_word: bool = False,
@@ -543,10 +550,10 @@ async def word_live_find_text(
         return mac_find_text(filename=filename, search_text=search_text, match_case=match_case, whole_word=whole_word, use_wildcards=use_wildcards, context_chars=context_chars, max_results=max_results)
 
     if sys.platform != "win32":
-        return json.dumps({"error": "Live tools are only available on Windows"})
+        return json.dumps({"success": False, "error": "Live tools are only available on Windows"})
 
     if not search_text:
-        return json.dumps({"error": "search_text is required"})
+        return json.dumps({"success": False, "error": "search_text is required"})
 
     # Same control-byte hazard as replace_text: \x07 and other control
     # bytes corrupt Word's Find engine. Reject before issuing Find.Execute.
@@ -554,7 +561,7 @@ async def word_live_find_text(
     try:
         reject_control_chars("search_text", search_text)
     except ValueError as e:
-        return json.dumps({"error": str(e)})
+        return json.dumps({"success": False, "error": str(e)})
 
     try:
         from word_document_server.core.word_com import get_word_app, find_document
@@ -631,10 +638,10 @@ async def word_live_find_text(
         return json.dumps(result, ensure_ascii=False)
 
     except Exception as e:
-        return json.dumps({"error": str(e)})
+        return json.dumps({"success": False, "error": str(e)})
 
 
-async def word_live_get_comments(filename: str = None) -> str:
+async def word_live_get_comments(filename: Optional[str] = None) -> str:
     """Get all comments from an open Word document.
 
     Args:
@@ -648,7 +655,7 @@ async def word_live_get_comments(filename: str = None) -> str:
         return mac_get_comments(filename=filename)
 
     if sys.platform != "win32":
-        return json.dumps({"error": "Live tools are only available on Windows"})
+        return json.dumps({"success": False, "error": "Live tools are only available on Windows"})
 
     try:
         from word_document_server.core.word_com import get_word_app, find_document
@@ -662,8 +669,8 @@ async def word_live_get_comments(filename: str = None) -> str:
             scope_text = ""
             try:
                 scope_text = c.Scope.Text[:100] if c.Scope and c.Scope.Text else ""
-            except Exception:
-                pass
+            except Exception as e:
+                logging.getLogger(__name__).warning("Could not read comment scope: %s", e)
 
             # Collect replies (Word 2016+)
             replies = []
@@ -676,8 +683,8 @@ async def word_live_get_comments(filename: str = None) -> str:
                         "date": str(r.Date) if r.Date else "",
                         "text": str(r.Range.Text) if r.Range and r.Range.Text else "",
                     })
-            except Exception:
-                pass  # Replies not supported in older Word versions
+            except Exception as e:
+                logging.getLogger(__name__).warning("Could not read comment replies: %s", e)
 
             comment_data = {
                 "index": i,
@@ -699,14 +706,14 @@ async def word_live_get_comments(filename: str = None) -> str:
         }, ensure_ascii=False)
 
     except Exception as e:
-        return json.dumps({"error": str(e)})
+        return json.dumps({"success": False, "error": str(e)})
 
 
 async def word_live_add_comment(
-    filename: str = None,
-    start: int = None,
-    end: int = None,
-    paragraph_index: int = None,
+    filename: Optional[str] = None,
+    start: Optional[int] = None,
+    end: Optional[int] = None,
+    paragraph_index: Optional[int] = None,
     text: str = "",
     author: str = DEFAULT_AUTHOR,
 ) -> str:
@@ -731,10 +738,10 @@ async def word_live_add_comment(
         return mac_add_comment(filename=filename, start=start, end=end, paragraph_index=paragraph_index, text=text, author=author)
 
     if sys.platform != "win32":
-        return json.dumps({"error": "Live tools are only available on Windows"})
+        return json.dumps({"success": False, "error": "Live tools are only available on Windows"})
 
     if not text:
-        return json.dumps({"error": "Comment text is required"})
+        return json.dumps({"success": False, "error": "Comment text is required"})
 
     try:
         from word_document_server.core.word_com import get_word_app, find_document, undo_record
@@ -745,14 +752,14 @@ async def word_live_add_comment(
         # Determine the range to attach the comment to
         if paragraph_index is not None:
             if paragraph_index < 1 or paragraph_index > doc.Paragraphs.Count:
-                return json.dumps({
+                return json.dumps({"success": False,
                     "error": f"paragraph_index {paragraph_index} out of range (1-{doc.Paragraphs.Count})"
                 })
             rng = doc.Paragraphs(paragraph_index).Range
         elif start is not None and end is not None:
             rng = doc.Range(start, end)
         else:
-            return json.dumps({
+            return json.dumps({"success": False,
                 "error": "Provide either start/end positions or paragraph_index"
             })
 
@@ -774,12 +781,12 @@ async def word_live_add_comment(
         }, ensure_ascii=False)
 
     except Exception as e:
-        return json.dumps({"error": str(e)})
+        return json.dumps({"success": False, "error": str(e)})
 
 
 async def word_live_reply_to_comment(
-    filename: str = None,
-    comment_index: int = None,
+    filename: Optional[str] = None,
+    comment_index: Optional[int] = None,
     text: str = "",
     author: str = DEFAULT_AUTHOR,
 ) -> str:
@@ -798,15 +805,15 @@ async def word_live_reply_to_comment(
         JSON with reply info.
     """
     if _MAC_AVAILABLE:
-        return json.dumps({"error": "word_live_reply_to_comment is not available on macOS — the AppleScript dictionary does not expose this feature"})
+        return json.dumps({"success": False, "error": "word_live_reply_to_comment is not available on macOS — the AppleScript dictionary does not expose this feature"})
 
     if sys.platform != "win32":
-        return json.dumps({"error": "Live tools are only available on Windows"})
+        return json.dumps({"success": False, "error": "Live tools are only available on Windows"})
 
     if comment_index is None:
-        return json.dumps({"error": "comment_index is required"})
+        return json.dumps({"success": False, "error": "comment_index is required"})
     if not text:
-        return json.dumps({"error": "Reply text is required"})
+        return json.dumps({"success": False, "error": "Reply text is required"})
 
     try:
         from word_document_server.core.word_com import get_word_app, find_document, undo_record
@@ -815,7 +822,7 @@ async def word_live_reply_to_comment(
         doc = find_document(app, filename)
 
         if comment_index < 1 or comment_index > doc.Comments.Count:
-            return json.dumps({
+            return json.dumps({"success": False,
                 "error": f"comment_index {comment_index} out of range (1-{doc.Comments.Count})"
             })
 
@@ -827,7 +834,7 @@ async def word_live_reply_to_comment(
             try:
                 reply = comment.Replies.Add(comment.Scope, text)
             except AttributeError:
-                return json.dumps({
+                return json.dumps({"success": False,
                     "error": "Comment replies require Word 2016 or later."
                 })
             finally:
@@ -843,12 +850,12 @@ async def word_live_reply_to_comment(
         }, ensure_ascii=False)
 
     except Exception as e:
-        return json.dumps({"error": str(e)})
+        return json.dumps({"success": False, "error": str(e)})
 
 
 async def word_live_resolve_comment(
-    filename: str = None,
-    comment_index: int = None,
+    filename: Optional[str] = None,
+    comment_index: Optional[int] = None,
     resolve: bool = True,
 ) -> str:
     """Resolve or unresolve a comment in an open Word document.
@@ -865,13 +872,13 @@ async def word_live_resolve_comment(
         JSON with result info.
     """
     if _MAC_AVAILABLE:
-        return json.dumps({"error": "word_live_resolve_comment is not available on macOS — the AppleScript dictionary does not expose this feature"})
+        return json.dumps({"success": False, "error": "word_live_resolve_comment is not available on macOS — the AppleScript dictionary does not expose this feature"})
 
     if sys.platform != "win32":
-        return json.dumps({"error": "Live tools are only available on Windows"})
+        return json.dumps({"success": False, "error": "Live tools are only available on Windows"})
 
     if comment_index is None:
-        return json.dumps({"error": "comment_index is required"})
+        return json.dumps({"success": False, "error": "comment_index is required"})
 
     try:
         from word_document_server.core.word_com import get_word_app, find_document
@@ -880,7 +887,7 @@ async def word_live_resolve_comment(
         doc = find_document(app, filename)
 
         if comment_index < 1 or comment_index > doc.Comments.Count:
-            return json.dumps({
+            return json.dumps({"success": False,
                 "error": f"comment_index {comment_index} out of range (1-{doc.Comments.Count})"
             })
 
@@ -889,12 +896,12 @@ async def word_live_resolve_comment(
         try:
             comment.Done = resolve
         except AttributeError:
-            return json.dumps({
+            return json.dumps({"success": False,
                 "error": "Comment resolve/unresolve requires Word 2016 or later."
             })
         except Exception as e:
             if "not available" in str(e).lower():
-                return json.dumps({
+                return json.dumps({"success": False,
                     "error": "Comment.Done is not available — Word's Modern Comments "
                     "does not support programmatic resolve via COM. This is a known "
                     "Microsoft limitation with no COM workaround.",
@@ -911,12 +918,12 @@ async def word_live_resolve_comment(
         }, ensure_ascii=False)
 
     except Exception as e:
-        return json.dumps({"error": str(e)})
+        return json.dumps({"success": False, "error": str(e)})
 
 
 async def word_live_delete_comment(
-    filename: str = None,
-    comment_index: int = None,
+    filename: Optional[str] = None,
+    comment_index: Optional[int] = None,
 ) -> str:
     """Delete a comment from an open Word document.
 
@@ -932,10 +939,10 @@ async def word_live_delete_comment(
         return mac_delete_comment(filename=filename, comment_index=comment_index)
 
     if sys.platform != "win32":
-        return json.dumps({"error": "Live tools are only available on Windows"})
+        return json.dumps({"success": False, "error": "Live tools are only available on Windows"})
 
     if comment_index is None:
-        return json.dumps({"error": "comment_index is required"})
+        return json.dumps({"success": False, "error": "comment_index is required"})
 
     try:
         from word_document_server.core.word_com import get_word_app, find_document, undo_record
@@ -944,7 +951,7 @@ async def word_live_delete_comment(
         doc = find_document(app, filename)
 
         if comment_index < 1 or comment_index > doc.Comments.Count:
-            return json.dumps({
+            return json.dumps({"success": False,
                 "error": f"comment_index {comment_index} out of range (1-{doc.Comments.Count})"
             })
 
@@ -963,10 +970,10 @@ async def word_live_delete_comment(
         }, ensure_ascii=False)
 
     except Exception as e:
-        return json.dumps({"error": str(e)})
+        return json.dumps({"success": False, "error": str(e)})
 
 
-async def word_live_list_revisions(filename: str = None) -> str:
+async def word_live_list_revisions(filename: Optional[str] = None) -> str:
     """List all tracked changes (revisions) in an open Word document.
 
     Args:
@@ -980,7 +987,7 @@ async def word_live_list_revisions(filename: str = None) -> str:
         return mac_list_revisions(filename=filename)
 
     if sys.platform != "win32":
-        return json.dumps({"error": "Live tools are only available on Windows"})
+        return json.dumps({"success": False, "error": "Live tools are only available on Windows"})
 
     try:
         from word_document_server.core.word_com import get_word_app, find_document
@@ -1012,8 +1019,8 @@ async def word_live_list_revisions(filename: str = None) -> str:
             rev_text = ""
             try:
                 rev_text = rev.Range.Text[:200] if rev.Range and rev.Range.Text else ""
-            except Exception:
-                pass
+            except Exception as e:
+                logging.getLogger(__name__).warning("Could not read revision text: %s", e)
 
             revisions.append({
                 "index": i,
@@ -1032,13 +1039,13 @@ async def word_live_list_revisions(filename: str = None) -> str:
         }, ensure_ascii=False)
 
     except Exception as e:
-        return json.dumps({"error": str(e)})
+        return json.dumps({"success": False, "error": str(e)})
 
 
 async def word_live_accept_revisions(
-    filename: str = None,
-    author: str = None,
-    revision_ids: list = None,
+    filename: Optional[str] = None,
+    author: Optional[str] = None,
+    revision_ids: Optional[list] = None,
 ) -> str:
     """Accept tracked changes in an open Word document.
 
@@ -1055,7 +1062,7 @@ async def word_live_accept_revisions(
         return mac_accept_revisions(filename=filename, author=author, revision_ids=revision_ids)
 
     if sys.platform != "win32":
-        return json.dumps({"error": "Live tools are only available on Windows"})
+        return json.dumps({"success": False, "error": "Live tools are only available on Windows"})
 
     try:
         from word_document_server.core.word_com import get_word_app, find_document, undo_record
@@ -1104,13 +1111,13 @@ async def word_live_accept_revisions(
             })
 
     except Exception as e:
-        return json.dumps({"error": str(e)})
+        return json.dumps({"success": False, "error": str(e)})
 
 
 async def word_live_reject_revisions(
-    filename: str = None,
-    author: str = None,
-    revision_ids: list = None,
+    filename: Optional[str] = None,
+    author: Optional[str] = None,
+    revision_ids: Optional[list] = None,
 ) -> str:
     """Reject tracked changes in an open Word document.
 
@@ -1127,7 +1134,7 @@ async def word_live_reject_revisions(
         return mac_reject_revisions(filename=filename, author=author, revision_ids=revision_ids)
 
     if sys.platform != "win32":
-        return json.dumps({"error": "Live tools are only available on Windows"})
+        return json.dumps({"success": False, "error": "Live tools are only available on Windows"})
 
     try:
         from word_document_server.core.word_com import get_word_app, find_document, undo_record
@@ -1173,13 +1180,13 @@ async def word_live_reject_revisions(
             })
 
     except Exception as e:
-        return json.dumps({"error": str(e)})
+        return json.dumps({"success": False, "error": str(e)})
 
 
 async def word_live_get_page_text(
-    filename: str = None,
+    filename: Optional[str] = None,
     page: int = 1,
-    end_page: int = None,
+    end_page: Optional[int] = None,
 ) -> str:
     """[Windows only] Get text from specific page(s) of an open Word document.
 
@@ -1202,13 +1209,13 @@ async def word_live_get_page_text(
         return mac_get_page_text(filename=filename, page=page, end_page=end_page)
 
     if sys.platform != "win32":
-        return json.dumps({"error": "Live tools are only available on Windows"})
+        return json.dumps({"success": False, "error": "Live tools are only available on Windows"})
 
     if page < 1:
-        return json.dumps({"error": "page must be >= 1"})
+        return json.dumps({"success": False, "error": "page must be >= 1"})
 
     if end_page is not None and end_page < page:
-        return json.dumps({"error": "end_page must be >= page"})
+        return json.dumps({"success": False, "error": "end_page must be >= page"})
 
     try:
         from word_document_server.core.word_com import get_word_app, find_document
@@ -1220,7 +1227,7 @@ async def word_live_get_page_text(
         total_pages = doc.ComputeStatistics(2)
 
         if page > total_pages:
-            return json.dumps({
+            return json.dumps({"success": False,
                 "error": f"Page {page} out of range (document has {total_pages} pages)"
             })
 
@@ -1277,11 +1284,11 @@ async def word_live_get_page_text(
         }, ensure_ascii=False)
 
     except Exception as e:
-        return json.dumps({"error": str(e)})
+        return json.dumps({"success": False, "error": str(e)})
 
 
 async def word_live_get_undo_history(
-    filename: str = None,
+    filename: Optional[str] = None,
 ) -> str:
     """[Windows only] Get the undo stack names from an open Word document.
 
@@ -1296,10 +1303,10 @@ async def word_live_get_undo_history(
         JSON with undo_entries list (most recent first) and count.
     """
     if _MAC_AVAILABLE:
-        return json.dumps({"error": "word_live_get_undo_history is not available on macOS — the AppleScript dictionary does not expose this feature"})
+        return json.dumps({"success": False, "error": "word_live_get_undo_history is not available on macOS — the AppleScript dictionary does not expose this feature"})
 
     if sys.platform != "win32":
-        return json.dumps({"error": "Live tools are only available on Windows"})
+        return json.dumps({"success": False, "error": "Live tools are only available on Windows"})
 
     try:
         from word_document_server.core.word_com import get_word_app, find_document
@@ -1334,11 +1341,11 @@ async def word_live_get_undo_history(
         }, ensure_ascii=False)
 
     except Exception as e:
-        return json.dumps({"error": str(e)})
+        return json.dumps({"success": False, "error": str(e)})
 
 
 async def word_live_diagnose_layout(
-    filename: str = None,
+    filename: Optional[str] = None,
 ) -> str:
     """[Windows only] Scan an open Word document for common layout problems.
 
@@ -1364,7 +1371,7 @@ async def word_live_diagnose_layout(
         return mac_diagnose_layout(filename=filename)
 
     if sys.platform != "win32":
-        return json.dumps({"error": "Live tools are only available on Windows"})
+        return json.dumps({"success": False, "error": "Live tools are only available on Windows"})
 
     try:
         from word_document_server.core.word_com import get_word_app, find_document
@@ -1453,8 +1460,8 @@ async def word_live_diagnose_layout(
             while find_rng.Find.Execute(FindText="^m", Forward=True, Wrap=0):
                 manual_breaks += 1
                 find_rng.SetRange(find_rng.End, doc.Content.End)
-        except Exception:
-            pass
+        except Exception as e:
+            logging.getLogger(__name__).warning("Could not count manual page breaks: %s", e)
         if manual_breaks > 0:
             issues.append({
                 "type": "manual_page_breaks",
@@ -1485,7 +1492,7 @@ async def word_live_diagnose_layout(
         }, ensure_ascii=False)
 
     except Exception as e:
-        return json.dumps({"error": str(e)})
+        return json.dumps({"success": False, "error": str(e)})
 
 
 _CORE_PROP_MAP = {
@@ -1502,16 +1509,16 @@ _CORE_PROP_MAP = {
 
 
 async def word_live_set_core_properties(
-    filename: str = None,
-    title: str = None,
-    subject: str = None,
-    author: str = None,
-    keywords: str = None,
-    comments: str = None,
-    category: str = None,
-    manager: str = None,
-    company: str = None,
-    last_author: str = None,
+    filename: Optional[str] = None,
+    title: Optional[str] = None,
+    subject: Optional[str] = None,
+    author: Optional[str] = None,
+    keywords: Optional[str] = None,
+    comments: Optional[str] = None,
+    category: Optional[str] = None,
+    manager: Optional[str] = None,
+    company: Optional[str] = None,
+    last_author: Optional[str] = None,
 ) -> str:
     """[Windows only] Set Word document core/built-in properties (Title, Subject, Author, etc.).
 
@@ -1535,7 +1542,7 @@ async def word_live_set_core_properties(
         JSON {ok, document, changed: {field: {old, new}}, errors: {field: msg}}.
     """
     if sys.platform != "win32":
-        return json.dumps({"error": "Live tools are only available on Windows"})
+        return json.dumps({"success": False, "error": "Live tools are only available on Windows"})
 
     try:
         from word_document_server.core.word_com import (
@@ -1579,7 +1586,7 @@ async def word_live_set_core_properties(
         }, ensure_ascii=False)
 
     except Exception as e:
-        return json.dumps({"error": str(e)})
+        return json.dumps({"success": False, "error": str(e)})
 
 
 async def word_live_list_open() -> str:
@@ -1593,7 +1600,7 @@ async def word_live_list_open() -> str:
         return mac_list_open()
 
     if sys.platform != "win32":
-        return json.dumps({"error": "Live tools are only available on Windows"})
+        return json.dumps({"success": False, "error": "Live tools are only available on Windows"})
 
     try:
         from word_document_server.core.word_com import get_word_app
@@ -1609,7 +1616,7 @@ async def word_live_list_open() -> str:
         try:
             count = app.Documents.Count
         except Exception as e:
-            return json.dumps({
+            return json.dumps({"success": False,
                 "error": f"could not enumerate Documents collection: {e}",
                 "documents": [],
             })
@@ -1665,4 +1672,4 @@ async def word_live_list_open() -> str:
         }, ensure_ascii=False)
 
     except Exception as e:
-        return json.dumps({"error": str(e)})
+        return json.dumps({"success": False, "error": str(e)})

@@ -5,12 +5,11 @@ These tools handle formatting operations for Word documents,
 including text formatting, table formatting, and custom styles.
 """
 import os
-from typing import List, Optional, Dict, Any
+from typing import List, Optional
 from docx import Document
 from docx.shared import Pt, RGBColor
 
 from word_document_server.utils.document_utils import get_effective_text
-from docx.enum.text import WD_COLOR_INDEX
 from docx.enum.style import WD_STYLE_TYPE
 
 from word_document_server.utils.file_utils import check_file_writeable, ensure_docx_extension, get_file_lock
@@ -89,7 +88,7 @@ async def format_text(filename: str, paragraph_index: int, start_pos: int, end_p
 
             # Add text before target
             if start_pos > 0:
-                run_before = paragraph.add_run(text[:start_pos])
+                paragraph.add_run(text[:start_pos])
 
             # Add target text with formatting
             run_target = paragraph.add_run(target_text)
@@ -120,7 +119,7 @@ async def format_text(filename: str, paragraph_index: int, start_pos: int, end_p
                     else:
                         # Try to set color by name
                         run_target.font.color.rgb = RGBColor.from_string(color)
-                except Exception as e:
+                except Exception:
                     # If all else fails, default to black
                     run_target.font.color.rgb = RGBColor(0, 0, 0)
             if font_size:
@@ -130,7 +129,7 @@ async def format_text(filename: str, paragraph_index: int, start_pos: int, end_p
 
             # Add text after target
             if end_pos < len(text):
-                run_after = paragraph.add_run(text[end_pos:])
+                paragraph.add_run(text[end_pos:])
 
             doc.save(filename)
         return f"Text '{target_text}' formatted successfully in paragraph {paragraph_index}."
@@ -182,7 +181,7 @@ async def create_custom_style(filename: str, style_name: str,
                 font_properties['color'] = color
 
             # Create the style
-            new_style = create_style(
+            create_style(
                 doc,
                 style_name,
                 WD_STYLE_TYPE.PARAGRAPH,
@@ -295,7 +294,7 @@ async def set_table_cell_shading(filename: str, table_index: int, row_index: int
                 doc.save(filename)
                 return f"Cell shading applied successfully to table {table_index}, row {row_index}, column {col_index}."
             else:
-                return f"Failed to apply cell shading."
+                return "Failed to apply cell shading."
     except Exception as e:
         return f"Failed to apply cell shading: {str(e)}"
 
@@ -343,7 +342,7 @@ async def apply_table_alternating_rows(filename: str, table_index: int,
                 doc.save(filename)
                 return f"Alternating row shading applied successfully to table {table_index}."
             else:
-                return f"Failed to apply alternating row shading."
+                return "Failed to apply alternating row shading."
     except Exception as e:
         return f"Failed to apply alternating row shading: {str(e)}"
 
@@ -391,7 +390,7 @@ async def highlight_table_header(filename: str, table_index: int,
                 doc.save(filename)
                 return f"Header highlighting applied successfully to table {table_index}."
             else:
-                return f"Failed to apply header highlighting."
+                return "Failed to apply header highlighting."
     except Exception as e:
         return f"Failed to apply header highlighting: {str(e)}"
 
@@ -452,7 +451,7 @@ async def merge_table_cells(filename: str, table_index: int, start_row: int, sta
                 doc.save(filename)
                 return f"Cells merged successfully in table {table_index} from ({start_row},{start_col}) to ({end_row},{end_col})."
             else:
-                return f"Failed to merge cells. Check that indices are valid."
+                return "Failed to merge cells. Check that indices are valid."
     except Exception as e:
         return f"Failed to merge cells: {str(e)}"
 
@@ -504,7 +503,7 @@ async def merge_table_cells_horizontal(filename: str, table_index: int, row_inde
                 doc.save(filename)
                 return f"Cells merged horizontally in table {table_index}, row {row_index}, columns {start_col}-{end_col}."
             else:
-                return f"Failed to merge cells horizontally. Check that indices are valid."
+                return "Failed to merge cells horizontally. Check that indices are valid."
     except Exception as e:
         return f"Failed to merge cells horizontally: {str(e)}"
 
@@ -556,7 +555,7 @@ async def merge_table_cells_vertical(filename: str, table_index: int, col_index:
                 doc.save(filename)
                 return f"Cells merged vertically in table {table_index}, column {col_index}, rows {start_row}-{end_row}."
             else:
-                return f"Failed to merge cells vertically. Check that indices are valid."
+                return "Failed to merge cells vertically. Check that indices are valid."
     except Exception as e:
         return f"Failed to merge cells vertically: {str(e)}"
 
@@ -618,7 +617,7 @@ async def set_table_cell_alignment(filename: str, table_index: int, row_index: i
                 doc.save(filename)
                 return f"Cell alignment set successfully for table {table_index}, cell ({row_index},{col_index}) to {horizontal}/{vertical}."
             else:
-                return f"Failed to set cell alignment. Check that indices are valid."
+                return "Failed to set cell alignment. Check that indices are valid."
     except Exception as e:
         return f"Failed to set cell alignment: {str(e)}"
 
@@ -676,7 +675,7 @@ async def set_table_alignment_all(filename: str, table_index: int,
                 doc.save(filename)
                 return f"Table alignment set successfully for table {table_index} to {horizontal}/{vertical} for all cells."
             else:
-                return f"Failed to set table alignment."
+                return "Failed to set table alignment."
     except Exception as e:
         return f"Failed to set table alignment: {str(e)}"
 
@@ -758,7 +757,7 @@ async def set_table_column_width(filename: str, table_index: int, col_index: int
                 doc.save(filename)
                 return f"Column width set successfully for table {table_index}, column {col_index} to {width} {width_type}."
             else:
-                return f"Failed to set column width. Check that indices are valid."
+                return "Failed to set column width. Check that indices are valid."
     except Exception as e:
         return f"Failed to set column width: {str(e)}"
 
@@ -835,7 +834,7 @@ async def set_table_column_widths(filename: str, table_index: int, widths: list,
                 doc.save(filename)
                 return f"Column widths set successfully for table {table_index} with {len(widths)} columns in {width_type}."
             else:
-                return f"Failed to set column widths."
+                return "Failed to set column widths."
     except Exception as e:
         return f"Failed to set column widths: {str(e)}"
 
@@ -907,7 +906,7 @@ async def set_table_width(filename: str, table_index: int, width: float,
                 doc.save(filename)
                 return f"Table width set successfully for table {table_index} to {width} {width_type}."
             else:
-                return f"Failed to set table width."
+                return "Failed to set table width."
     except Exception as e:
         return f"Failed to set table width: {str(e)}"
 
@@ -952,7 +951,7 @@ async def auto_fit_table_columns(filename: str, table_index: int) -> str:
                 doc.save(filename)
                 return f"Table {table_index} set to auto-fit columns based on content."
             else:
-                return f"Failed to set table auto-fit."
+                return "Failed to set table auto-fit."
     except Exception as e:
         return f"Failed to set table auto-fit: {str(e)}"
 
@@ -1038,7 +1037,7 @@ async def format_table_cell_text(filename: str, table_index: int, row_index: int
                 format_str = ", ".join(format_desc) if format_desc else "no changes"
                 return f"Cell text formatted successfully in table {table_index}, cell ({row_index},{col_index}): {format_str}."
             else:
-                return f"Failed to format cell text. Check that indices are valid."
+                return "Failed to format cell text. Check that indices are valid."
     except Exception as e:
         return f"Failed to format cell text: {str(e)}"
 
@@ -1129,6 +1128,6 @@ async def set_table_cell_padding(filename: str, table_index: int, row_index: int
                 padding_str = ", ".join(padding_desc) if padding_desc else "no padding"
                 return f"Cell padding set successfully for table {table_index}, cell ({row_index},{col_index}): {padding_str} {unit}."
             else:
-                return f"Failed to set cell padding. Check that indices are valid."
+                return "Failed to set cell padding. Check that indices are valid."
     except Exception as e:
         return f"Failed to set cell padding: {str(e)}"

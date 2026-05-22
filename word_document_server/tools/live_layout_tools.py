@@ -7,24 +7,51 @@ management for files that are open (and locked) in Word.
 
 import json
 import sys
+from typing import Optional
 
 # macOS JXA dispatch
 _MAC_AVAILABLE = sys.platform == 'darwin'
 
-# 1 inch = 72 points (avoid app.InchesToPoints which can fail on some COM setups)
 _PTS_PER_INCH = 72.0
+
+_WD_STYLE_MAP = {
+    "Normal": -1, "Heading 1": -2, "Heading 2": -3, "Heading 3": -4,
+    "Heading 4": -5, "Heading 5": -6, "Heading 6": -7, "Heading 7": -8,
+    "Heading 8": -9, "Heading 9": -10, "Title": -63, "Subtitle": -75,
+    "Body Text": -67, "Body Text 2": -68, "Body Text 3": -69,
+    "List Paragraph": -78, "Quote": -85, "Intense Quote": -86,
+    "Caption": -40, "TOC Heading": -89, "TOC 1": -20, "TOC 2": -21,
+    "Table Grid": -155, "Light Shading": -156, "Light List": -157,
+    "Light Grid": -158, "Medium Shading 1": -159, "Medium Shading 2": -160,
+    "Medium List 1": -161, "Medium List 2": -162, "Medium Grid 1": -163,
+    "Medium Grid 2": -164, "Medium Grid 3": -165, "Dark List": -166,
+    "Colorful Shading": -167, "Colorful List": -168, "Colorful Grid": -169,
+    "Light Shading Accent 1": -170, "Light List Accent 1": -171,
+    "Light Grid Accent 1": -172, "Medium Shading 1 Accent 1": -173,
+    "Medium Shading 2 Accent 1": -174, "Medium List 1 Accent 1": -175,
+}
+
+
+def _resolve_style(doc, style_name: str):
+    if style_name in _WD_STYLE_MAP:
+        return _WD_STYLE_MAP[style_name]
+    for i in range(1, doc.Styles.Count + 1):
+        s = doc.Styles(i)
+        if s.NameLocal == style_name:
+            return s.NameLocal
+    return None
 
 
 async def word_live_set_page_layout(
-    filename: str = None,
+    filename: Optional[str] = None,
     section_index: int = 1,
-    orientation: str = None,
-    page_width_inches: float = None,
-    page_height_inches: float = None,
-    margin_top_inches: float = None,
-    margin_bottom_inches: float = None,
-    margin_left_inches: float = None,
-    margin_right_inches: float = None,
+    orientation: Optional[str] = None,
+    page_width_inches: Optional[float] = None,
+    page_height_inches: Optional[float] = None,
+    margin_top_inches: Optional[float] = None,
+    margin_bottom_inches: Optional[float] = None,
+    margin_left_inches: Optional[float] = None,
+    margin_right_inches: Optional[float] = None,
 ) -> str:
     """Set page layout for a section in an open Word document.
 
@@ -44,10 +71,15 @@ async def word_live_set_page_layout(
     """
     if _MAC_AVAILABLE:
         from word_document_server.core.word_mac import mac_set_page_layout
-        return mac_set_page_layout(filename=filename, section_index=section_index, orientation=orientation, page_width=page_width, page_height=page_height, top_margin=top_margin, bottom_margin=bottom_margin, left_margin=left_margin, right_margin=right_margin)
+        return mac_set_page_layout(
+            filename=filename, section_index=section_index, orientation=orientation,
+            page_width=page_width_inches, page_height=page_height_inches,
+            top_margin=margin_top_inches, bottom_margin=margin_bottom_inches,
+            left_margin=margin_left_inches, right_margin=margin_right_inches,
+        )
 
     if sys.platform != "win32":
-        return json.dumps({"error": "Live layout tools are only available on Windows"})
+        return json.dumps({"success": False, "error": "Live layout tools are only available on Windows"})
 
     try:
         from word_document_server.core.word_com import get_word_app, find_document, undo_record
@@ -56,7 +88,7 @@ async def word_live_set_page_layout(
         doc = find_document(app, filename)
 
         if section_index < 1 or section_index > doc.Sections.Count:
-            return json.dumps({
+            return json.dumps({"success": False,
                 "error": f"Section {section_index} out of range (1-{doc.Sections.Count})"
             })
 
@@ -100,14 +132,14 @@ async def word_live_set_page_layout(
         })
 
     except Exception as e:
-        return json.dumps({"error": str(e)})
+        return json.dumps({"success": False, "error": str(e)})
 
 
 async def word_live_add_header_footer(
-    filename: str = None,
+    filename: Optional[str] = None,
     section_index: int = 1,
-    header_text: str = None,
-    footer_text: str = None,
+    header_text: Optional[str] = None,
+    footer_text: Optional[str] = None,
     header_alignment: str = "center",
     footer_alignment: str = "center",
 ) -> str:
@@ -126,10 +158,10 @@ async def word_live_add_header_footer(
     """
     if _MAC_AVAILABLE:
         from word_document_server.core.word_mac import mac_add_header_footer
-        return mac_add_header_footer(filename=filename, section_index=section_index, header_text=header_text, footer_text=footer_text)
+        return mac_add_header_footer(filename=filename, section_index=section_index, header_text=header_text, footer_text=footer_text, alignment=header_alignment or footer_alignment)
 
     if sys.platform != "win32":
-        return json.dumps({"error": "Live layout tools are only available on Windows"})
+        return json.dumps({"success": False, "error": "Live layout tools are only available on Windows"})
 
     try:
         from word_document_server.core.word_com import get_word_app, find_document, undo_record
@@ -138,7 +170,7 @@ async def word_live_add_header_footer(
         doc = find_document(app, filename)
 
         if section_index < 1 or section_index > doc.Sections.Count:
-            return json.dumps({
+            return json.dumps({"success": False,
                 "error": f"Section {section_index} out of range (1-{doc.Sections.Count})"
             })
 
@@ -174,11 +206,11 @@ async def word_live_add_header_footer(
         }, ensure_ascii=False)
 
     except Exception as e:
-        return json.dumps({"error": str(e)})
+        return json.dumps({"success": False, "error": str(e)})
 
 
 async def word_live_add_page_numbers(
-    filename: str = None,
+    filename: Optional[str] = None,
     section_index: int = 1,
     position: str = "footer",
     alignment: str = "center",
@@ -201,10 +233,10 @@ async def word_live_add_page_numbers(
         JSON with result info.
     """
     if _MAC_AVAILABLE:
-        return json.dumps({"error": "word_live_add_page_numbers is not yet implemented on macOS"})
+        return json.dumps({"success": False, "error": "word_live_add_page_numbers is not yet implemented on macOS"})
 
     if sys.platform != "win32":
-        return json.dumps({"error": "Live layout tools are only available on Windows"})
+        return json.dumps({"success": False, "error": "Live layout tools are only available on Windows"})
 
     try:
         from word_document_server.core.word_com import get_word_app, find_document, undo_record
@@ -213,7 +245,7 @@ async def word_live_add_page_numbers(
         doc = find_document(app, filename)
 
         if section_index < 1 or section_index > doc.Sections.Count:
-            return json.dumps({
+            return json.dumps({"success": False,
                 "error": f"Section {section_index} out of range (1-{doc.Sections.Count})"
             })
 
@@ -232,7 +264,6 @@ async def word_live_add_page_numbers(
             # Add prefix/suffix/total by editing the range
             if prefix or suffix or include_total:
                 rng = target.Range
-                existing_text = rng.Text
 
                 # Build the text with field codes
                 # Clear and rebuild
@@ -272,11 +303,11 @@ async def word_live_add_page_numbers(
         })
 
     except Exception as e:
-        return json.dumps({"error": str(e)})
+        return json.dumps({"success": False, "error": str(e)})
 
 
 async def word_live_add_section_break(
-    filename: str = None,
+    filename: Optional[str] = None,
     break_type: str = "new_page",
 ) -> str:
     """Add a section break to an open Word document.
@@ -293,7 +324,7 @@ async def word_live_add_section_break(
         return mac_add_section_break(filename=filename, break_type=break_type)
 
     if sys.platform != "win32":
-        return json.dumps({"error": "Live layout tools are only available on Windows"})
+        return json.dumps({"success": False, "error": "Live layout tools are only available on Windows"})
 
     try:
         from word_document_server.core.word_com import get_word_app, find_document, undo_record
@@ -310,7 +341,7 @@ async def word_live_add_section_break(
         }
 
         if break_type not in type_map:
-            return json.dumps({
+            return json.dumps({"success": False,
                 "error": f"Invalid break_type: {break_type}. Use: {list(type_map.keys())}"
             })
 
@@ -328,21 +359,21 @@ async def word_live_add_section_break(
         })
 
     except Exception as e:
-        return json.dumps({"error": str(e)})
+        return json.dumps({"success": False, "error": str(e)})
 
 
 async def word_live_set_paragraph_spacing(
-    filename: str = None,
-    paragraph_index: int = None,
-    start_paragraph: int = None,
-    end_paragraph: int = None,
-    space_before_pt: float = None,
-    space_after_pt: float = None,
-    line_spacing: float = None,
-    line_spacing_rule: str = None,
-    keep_with_next: bool = None,
-    keep_together: bool = None,
-    alignment: str = None,
+    filename: Optional[str] = None,
+    paragraph_index: Optional[int] = None,
+    start_paragraph: Optional[int] = None,
+    end_paragraph: Optional[int] = None,
+    space_before_pt: Optional[float] = None,
+    space_after_pt: Optional[float] = None,
+    line_spacing: Optional[float] = None,
+    line_spacing_rule: Optional[str] = None,
+    keep_with_next: Optional[bool] = None,
+    keep_together: Optional[bool] = None,
+    alignment: Optional[str] = None,
 ) -> str:
     """Set paragraph spacing and layout properties in an open Word document.
 
@@ -371,7 +402,7 @@ async def word_live_set_paragraph_spacing(
         return mac_set_paragraph_spacing(filename=filename, paragraph_index=paragraph_index, start_paragraph=start_paragraph, end_paragraph=end_paragraph, space_before=space_before_pt, space_after=space_after_pt, line_spacing=line_spacing, keep_with_next=keep_with_next, keep_together=keep_together, alignment=alignment)
 
     if sys.platform != "win32":
-        return json.dumps({"error": "Live layout tools are only available on Windows"})
+        return json.dumps({"success": False, "error": "Live layout tools are only available on Windows"})
 
     try:
         from word_document_server.core.word_com import get_word_app, find_document, undo_record
@@ -396,7 +427,7 @@ async def word_live_set_paragraph_spacing(
             indices = range(max(1, start_paragraph), min(end_paragraph + 1, total + 1))
         elif paragraph_index is not None:
             if paragraph_index < 1 or paragraph_index > total:
-                return json.dumps({
+                return json.dumps({"success": False,
                     "error": f"paragraph_index {paragraph_index} out of range (1-{total})"
                 })
             indices = [paragraph_index]
@@ -432,11 +463,11 @@ async def word_live_set_paragraph_spacing(
         })
 
     except Exception as e:
-        return json.dumps({"error": str(e)})
+        return json.dumps({"success": False, "error": str(e)})
 
 
 async def word_live_add_bookmark(
-    filename: str = None,
+    filename: Optional[str] = None,
     paragraph_index: int = 1,
     bookmark_name: str = "",
 ) -> str:
@@ -455,10 +486,10 @@ async def word_live_add_bookmark(
         return mac_add_bookmark(filename=filename, paragraph_index=paragraph_index, bookmark_name=bookmark_name)
 
     if sys.platform != "win32":
-        return json.dumps({"error": "Live layout tools are only available on Windows"})
+        return json.dumps({"success": False, "error": "Live layout tools are only available on Windows"})
 
     if not bookmark_name:
-        return json.dumps({"error": "bookmark_name is required"})
+        return json.dumps({"success": False, "error": "bookmark_name is required"})
 
     try:
         from word_document_server.core.word_com import get_word_app, find_document, undo_record
@@ -467,7 +498,7 @@ async def word_live_add_bookmark(
         doc = find_document(app, filename)
 
         if paragraph_index < 1 or paragraph_index > doc.Paragraphs.Count:
-            return json.dumps({
+            return json.dumps({"success": False,
                 "error": f"paragraph_index {paragraph_index} out of range (1-{doc.Paragraphs.Count})"
             })
 
@@ -483,11 +514,11 @@ async def word_live_add_bookmark(
         })
 
     except Exception as e:
-        return json.dumps({"error": str(e)})
+        return json.dumps({"success": False, "error": str(e)})
 
 
 async def word_live_add_watermark(
-    filename: str = None,
+    filename: Optional[str] = None,
     text: str = "TASLAK",
     font_size: int = 72,
     font_color: str = "C0C0C0",
@@ -508,10 +539,10 @@ async def word_live_add_watermark(
         JSON with result info.
     """
     if _MAC_AVAILABLE:
-        return json.dumps({"error": "word_live_add_watermark is not yet implemented on macOS"})
+        return json.dumps({"success": False, "error": "word_live_add_watermark is not yet implemented on macOS"})
 
     if sys.platform != "win32":
-        return json.dumps({"error": "Live layout tools are only available on Windows"})
+        return json.dumps({"success": False, "error": "Live layout tools are only available on Windows"})
 
     try:
         from word_document_server.core.word_com import get_word_app, find_document, undo_record
@@ -520,7 +551,7 @@ async def word_live_add_watermark(
         doc = find_document(app, filename)
 
         if section_index < 1 or section_index > doc.Sections.Count:
-            return json.dumps({
+            return json.dumps({"success": False,
                 "error": f"Section {section_index} out of range (1-{doc.Sections.Count})"
             })
 
@@ -570,4 +601,561 @@ async def word_live_add_watermark(
         }, ensure_ascii=False)
 
     except Exception as e:
-        return json.dumps({"error": str(e)})
+        return json.dumps({"success": False, "error": str(e)})
+
+
+# ── Live Style Tools ────────────────────────────────────────────────────────
+
+
+async def word_live_list_styles(filename: Optional[str] = None) -> str:
+    """List all styles in an open Word document.
+
+    Args:
+        filename: Document name or path (None = active document).
+
+    Returns:
+        JSON with styles.
+    """
+    if _MAC_AVAILABLE:
+        from word_document_server.core.word_mac import _run_jxa, _doc_finder_js
+        finder = _doc_finder_js(filename)
+        return _run_jxa(f"""
+var app = Application("Microsoft Word");
+{finder}
+var ss = d.styles();
+var results = [];
+for (var i = 0; i < ss.length; i++) {{
+    var s = ss[i];
+    results.push({{name: s.name(), type: s.type().toString(), builtin: s.builtIn()}});
+}}
+JSON.stringify({{success: true, count: results.length, styles: results}});
+""")
+
+    try:
+        from word_document_server.core.word_com import get_word_app, find_document
+        app = get_word_app()
+        doc = find_document(app, filename)
+        styles = []
+        for i in range(1, doc.Styles.Count + 1):
+            s = doc.Styles(i)
+            styles.append({"name": s.NameLocal, "type": s.Type, "builtin": s.BuiltIn})
+        return json.dumps({"success": True, "count": len(styles), "styles": styles})
+    except Exception as e:
+        return json.dumps({"success": False, "error": str(e)})
+
+
+async def word_live_apply_style(
+    filename: Optional[str] = None,
+    paragraph_index: Optional[int] = None,
+    style_name: str = "Normal",
+    apply_to: str = "paragraph",
+) -> str:
+    """Apply a style to a paragraph or selection in an open Word document.
+
+    Args:
+        filename: Document name or path (None = active document).
+        paragraph_index: 1-based paragraph index. None = apply to selection.
+        style_name: Style name to apply.
+        apply_to: "paragraph" or "selection". Default "paragraph".
+
+    Returns:
+        JSON with result.
+    """
+    if _MAC_AVAILABLE:
+        from word_document_server.core.word_mac import _run_jxa, _doc_finder_js
+        finder = _doc_finder_js(filename)
+        idx_js = f"var para = d.paragraphs[{paragraph_index - 1}];" if paragraph_index else "var para = app.selection.paragraphs[0];"
+        return _run_jxa(f"""
+var app = Application("Microsoft Word");
+{finder}
+{idx_js}
+para.style = "{style_name}";
+JSON.stringify({{success: true, style: "{style_name}"}});
+""")
+
+    try:
+        from word_document_server.core.word_com import get_word_app, find_document, undo_record
+        app = get_word_app()
+        doc = find_document(app, filename)
+        with undo_record(app, "MCP: Apply Style"):
+            if paragraph_index:
+                if paragraph_index < 1 or paragraph_index > doc.Paragraphs.Count:
+                    return json.dumps({"success": False, "error": f"paragraph_index {paragraph_index} out of range"})
+                rng = doc.Paragraphs(paragraph_index).Range
+            else:
+                rng = app.Selection.Range
+            try:
+                rng.Style = doc.Styles(style_name)
+            except Exception:
+                resolved = _resolve_style(doc, style_name)
+                if resolved is None:
+                    return json.dumps({"success": False, "error": f"Style '{style_name}' not found"})
+                rng.Style = resolved
+        return json.dumps({"success": True, "style": style_name})
+    except Exception as e:
+        return json.dumps({"success": False, "error": str(e)})
+
+
+async def word_live_modify_style(
+    filename: Optional[str] = None,
+    style_name: str = "Normal",
+    font_name: Optional[str] = None,
+    font_size: Optional[float] = None,
+    bold: Optional[bool] = None,
+    italic: Optional[bool] = None,
+    color: Optional[str] = None,
+) -> str:
+    """Modify properties of an existing style in an open Word document.
+
+    Args:
+        filename: Document name or path (None = active document).
+        style_name: Style to modify.
+        font_name: New font name.
+        font_size: New font size in points.
+        bold: Bold on/off.
+        italic: Italic on/off.
+        color: Color name (e.g. "red", "blue").
+
+    Returns:
+        JSON with result.
+    """
+    if _MAC_AVAILABLE:
+        from word_document_server.core.word_mac import _run_jxa, _doc_finder_js
+        finder = _doc_finder_js(filename)
+        props = []
+        if font_name:
+            props.append(f's.fontName = "{font_name}";')
+        if font_size:
+            props.append(f"s.fontSize = {font_size};")
+        if bold is not None:
+            props.append(f's.bold = {"true" if bold else "false"};')
+        if italic is not None:
+            props.append(f's.italic = {"true" if italic else "false"};')
+        return _run_jxa(f"""
+var app = Application("Microsoft Word");
+{finder}
+var s = d.styles().byName("{style_name}");
+{chr(10).join(props)}
+JSON.stringify({{success: true, style: "{style_name}"}});
+""")
+
+    try:
+        from word_document_server.core.word_com import get_word_app, find_document
+        app = get_word_app()
+        doc = find_document(app, filename)
+        try:
+            style = doc.Styles(style_name)
+        except Exception:
+            resolved = _resolve_style(doc, style_name)
+            if resolved is None:
+                return json.dumps({"success": False, "error": f"Style '{style_name}' not found"})
+            style = doc.Styles(resolved)
+        font = style.Font
+        if font_name:
+            font.Name = font_name
+        if font_size:
+            font.Size = font_size
+        if bold is not None:
+            font.Bold = bold
+        if italic is not None:
+            font.Italic = italic
+        if color:
+            from word_document_server.tools.live_doc_tools import _COLOR_MAP
+            if color in _COLOR_MAP:
+                font.ColorIndex = _COLOR_MAP[color]
+            else:
+                return json.dumps({"success": False, "error": f"Unknown color '{color}'"})
+        return json.dumps({"success": True, "style": style_name})
+    except Exception as e:
+        return json.dumps({"success": False, "error": str(e)})
+
+
+async def word_live_set_section_columns(
+    filename: Optional[str] = None,
+    section_index: int = 1,
+    columns: int = 2,
+    spacing: Optional[float] = None,
+    equal_width: bool = True,
+) -> str:
+    """Set column layout for a section in an open Word document.
+
+    Args:
+        filename: Document name or path (None = active document).
+        section_index: Section number (1-based). Default 1.
+        columns: Number of columns. Default 2.
+        spacing: Spacing between columns in points. None = default.
+        equal_width: Equal column widths. Default True.
+
+    Returns:
+        JSON with result.
+    """
+    if _MAC_AVAILABLE:
+        from word_document_server.core.word_mac import _run_jxa, _doc_finder_js
+        finder = _doc_finder_js(filename)
+        spacing_js = f", columnSpacing: {spacing}" if spacing else ""
+        return _run_jxa(f"""
+var app = Application("Microsoft Word");
+{finder}
+var ps = d.sections[{section_index - 1}].pageSetup;
+ps.columnCount = {columns};
+ps.equalColumnWidth = {"true" if equal_width else "false"}{spacing_js};
+JSON.stringify({{success: true, section: {section_index}, columns: {columns}}});
+""")
+
+    try:
+        from word_document_server.core.word_com import get_word_app, find_document, undo_record
+        app = get_word_app()
+        doc = find_document(app, filename)
+        if section_index < 1 or section_index > doc.Sections.Count:
+            return json.dumps({"success": False, "error": f"Section {section_index} out of range"})
+        with undo_record(app, "MCP: Set Section Columns"):
+            sec = doc.Sections(section_index)
+            ps = sec.PageSetup
+            ps.TextColumns.SetCount(columns)
+            if spacing is not None:
+                ps.TextColumns.Spacing = spacing
+            if not equal_width and columns > 1:
+                ps.TextColumns.EvenlySpaced = False
+        return json.dumps({"success": True, "section": section_index, "columns": columns})
+    except Exception as e:
+        return json.dumps({"success": False, "error": str(e)})
+
+
+async def word_live_insert_column_break(filename: Optional[str] = None) -> str:
+    """Insert a column break at the current selection in an open Word document.
+
+    Args:
+        filename: Document name or path (None = active document).
+
+    Returns:
+        JSON with result.
+    """
+    if _MAC_AVAILABLE:
+        from word_document_server.core.word_mac import _run_jxa, _doc_finder_js
+        finder = _doc_finder_js(filename)
+        return _run_jxa(f"""
+var app = Application("Microsoft Word");
+{finder}
+app.selection.insertBreak({{breakType: "column break"}});
+JSON.stringify({{success: true, action: "column_break"}});
+""")
+
+    try:
+        from word_document_server.core.word_com import get_word_app, undo_record
+        app = get_word_app()
+        with undo_record(app, "MCP: Insert Column Break"):
+            app.Selection.InsertBreak(Type=8)  # wdColumnBreak = 8
+        return json.dumps({"success": True, "action": "column_break"})
+    except Exception as e:
+        return json.dumps({"success": False, "error": str(e)})
+
+
+async def word_live_get_section_layout(filename: Optional[str] = None, section_index: int = 1) -> str:
+    """Get layout properties of a section in an open Word document.
+
+    Args:
+        filename: Document name or path (None = active document).
+        section_index: Section number (1-indexed). Default 1.
+
+    Returns:
+        JSON with section layout info.
+    """
+    if _MAC_AVAILABLE:
+        from word_document_server.core.word_mac import _run_jxa, _doc_finder_js
+        finder = _doc_finder_js(filename)
+        return _run_jxa(f"""
+var app = Application("Microsoft Word");
+{finder}
+var secIdx = Math.max(0, {section_index} - 1);
+var ps = d.sections[secIdx].pageSetup;
+JSON.stringify({{
+    success: true,
+    section: {section_index},
+    orientation: ps.orientation().toString(),
+    pageWidth: ps.pageWidth(),
+    pageHeight: ps.pageHeight(),
+    topMargin: ps.topMargin(),
+    bottomMargin: ps.bottomMargin(),
+    leftMargin: ps.leftMargin(),
+    rightMargin: ps.rightMargin(),
+    columns: ps.columnCount()
+}});
+""")
+
+    try:
+        from word_document_server.core.word_com import get_word_app, find_document
+        app = get_word_app()
+        doc = find_document(app, filename)
+        if section_index < 1 or section_index > doc.Sections.Count:
+            return json.dumps({"success": False, "error": f"Section {section_index} out of range"})
+        ps = doc.Sections(section_index).PageSetup
+        info = {
+            "success": True,
+            "section": section_index,
+            "orientation": "landscape" if ps.Orientation == 1 else "portrait",
+            "page_width_pt": ps.PageWidth,
+            "page_height_pt": ps.PageHeight,
+            "margin_top_pt": ps.TopMargin,
+            "margin_bottom_pt": ps.BottomMargin,
+            "margin_left_pt": ps.LeftMargin,
+            "margin_right_pt": ps.RightMargin,
+            "columns": ps.TextColumns.Count,
+        }
+        return json.dumps(info, ensure_ascii=False)
+    except Exception as e:
+        return json.dumps({"success": False, "error": str(e)})
+
+
+# ── Live Advanced Table Tools ───────────────────────────────────────────────
+
+
+async def word_live_delete_table(filename: Optional[str] = None, table_index: int = 0) -> str:
+    """Delete a table from an open Word document.
+
+    Args:
+        filename: Document name or path (None = active document).
+        table_index: Index of the table (0-based). Default 0.
+
+    Returns:
+        JSON with result.
+    """
+    if _MAC_AVAILABLE:
+        from word_document_server.core.word_mac import _run_jxa, _doc_finder_js
+        finder = _doc_finder_js(filename)
+        return _run_jxa(f"""
+var app = Application("Microsoft Word");
+{finder}
+if ({table_index} >= d.tables.length) throw new Error("Table index out of range");
+app.delete(d.tables[{table_index}]);
+JSON.stringify({{success: true, deleted_table: {table_index}}});
+""")
+
+    try:
+        from word_document_server.core.word_com import get_word_app, find_document
+        app = get_word_app()
+        doc = find_document(app, filename)
+        if table_index < 0 or table_index >= doc.Tables.Count:
+            return json.dumps({"success": False, "error": f"Table index {table_index} out of range"})
+        doc.Tables(table_index + 1).Delete()
+        return json.dumps({"success": True, "deleted_table": table_index})
+    except Exception as e:
+        return json.dumps({"success": False, "error": str(e)})
+
+
+async def word_live_repeat_table_header(filename: Optional[str] = None, table_index: int = 0, header_rows: int = 1) -> str:
+    """Set header rows of a table to repeat on each page in an open Word document.
+
+    Args:
+        filename: Document name or path (None = active document).
+        table_index: Index of the table (0-based). Default 0.
+        header_rows: Number of header rows to repeat. Default 1.
+
+    Returns:
+        JSON with result.
+    """
+    try:
+        from word_document_server.core.word_com import get_word_app, find_document
+        app = get_word_app()
+        doc = find_document(app, filename)
+        if table_index < 0 or table_index >= doc.Tables.Count:
+            return json.dumps({"success": False, "error": f"Table index {table_index} out of range"})
+        tbl = doc.Tables(table_index + 1)
+        for i in range(1, min(header_rows + 1, tbl.Rows.Count + 1)):
+            tbl.Rows(i).HeadingFormat = -1
+        return json.dumps({"success": True, "table": table_index, "header_rows": header_rows})
+    except Exception as e:
+        return json.dumps({"success": False, "error": str(e)})
+
+
+async def word_live_sort_table(filename: Optional[str] = None, table_index: int = 0, column: int = 0, descending: bool = False, header_row: bool = True) -> str:
+    """Sort a table by a column in an open Word document.
+
+    Args:
+        filename: Document name or path (None = active document).
+        table_index: Index of the table (0-based). Default 0.
+        column: Column to sort by (0-based). Default 0.
+        descending: Sort descending. Default False.
+        header_row: First row is header. Default True.
+
+    Returns:
+        JSON with result.
+    """
+    if _MAC_AVAILABLE:
+        from word_document_server.core.word_mac import _run_jxa, _doc_finder_js
+        finder = _doc_finder_js(filename)
+        sort_dir = "descending" if descending else "ascending"
+        hdr_js = "true" if header_row else "false"
+        return _run_jxa(f"""
+var app = Application("Microsoft Word");
+{finder}
+if ({table_index} >= d.tables.length) throw new Error("Table index out of range");
+app.sort(d.tables[{table_index}], {{by: {column}, order: "{sort_dir}", excludeHeader: {hdr_js}}});
+JSON.stringify({{success: true, table: {table_index}, sorted_by: {column}}});
+""")
+
+    try:
+        from word_document_server.core.word_com import get_word_app, find_document
+        app = get_word_app()
+        doc = find_document(app, filename)
+        if table_index < 0 or table_index >= doc.Tables.Count:
+            return json.dumps({"success": False, "error": f"Table index {table_index} out of range"})
+        tbl = doc.Tables(table_index + 1)
+        sort_order = 2 if descending else 1
+        hdr = 1 if header_row else 0
+        col1_index = column + 1
+        rng = tbl.Range
+        rng.Sort(
+            ExcludeHeader=hdr,
+            SortFieldType=0,
+            SortOrder=sort_order,
+            SortColumn=col1_index,
+        )
+        return json.dumps({"success": True, "table": table_index, "sorted_by": column, "descending": descending})
+    except Exception as e:
+        return json.dumps({"success": False, "error": str(e)})
+
+
+# ── Live Object Insertion Tools ─────────────────────────────────────────────
+
+
+async def word_live_update_table_of_contents(filename: Optional[str] = None) -> str:
+    """Update/refresh an existing Table of Contents in an open Word document.
+
+    Args:
+        filename: Document name or path (None = active document).
+
+    Returns:
+        JSON with result.
+    """
+    if _MAC_AVAILABLE:
+        from word_document_server.core.word_mac import _run_jxa, _doc_finder_js
+        finder = _doc_finder_js(filename)
+        return _run_jxa(f"""
+var app = Application("Microsoft Word");
+{finder}
+var tocCount = d.tablesOfContents.length;
+if (tocCount === 0) throw new Error("No TOC found");
+for (var i = 0; i < tocCount; i++) app.update(d.tablesOfContents[i]);
+JSON.stringify({{success: true, updated_tocs: tocCount}});
+""")
+
+    try:
+        from word_document_server.core.word_com import get_word_app, find_document
+        app = get_word_app()
+        doc = find_document(app, filename)
+        toc_count = doc.TablesOfContents.Count
+        if toc_count == 0:
+            return json.dumps({"success": False, "error": "No Table of Contents found"})
+        for i in range(1, toc_count + 1):
+            doc.TablesOfContents(i).Update()
+        return json.dumps({"success": True, "updated_tocs": toc_count})
+    except Exception as e:
+        return json.dumps({"success": False, "error": str(e)})
+
+
+async def word_live_insert_text_box(filename: Optional[str] = None, text: str = "", left_inches: float = 1.0, top_inches: float = 1.0, width_inches: float = 3.0, height_inches: float = 1.0) -> str:
+    """Insert a text box into an open Word document.
+
+    Args:
+        filename: Document name or path (None = active document).
+        text: Text content for the text box.
+        left_inches: Left position in inches. Default 1.0.
+        top_inches: Top position in inches. Default 1.0.
+        width_inches: Width in inches. Default 3.0.
+        height_inches: Height in inches. Default 1.0.
+
+    Returns:
+        JSON with result.
+    """
+    try:
+        from word_document_server.core.word_com import get_word_app, find_document
+        app = get_word_app()
+        doc = find_document(app, filename)
+        left_pt = float(left_inches * 72)
+        top_pt = float(top_inches * 72)
+        width_pt = float(width_inches * 72)
+        height_pt = float(height_inches * 72)
+        tb = doc.Shapes.AddTextbox(1, left_pt, top_pt, width_pt, height_pt)
+        tb.TextFrame.TextRange.Text = text
+        return json.dumps({"success": True, "text_box": text[:50], "position": f"{left_inches}x{top_inches}in", "size": f"{width_inches}x{height_inches}in"})
+    except Exception as e:
+        return json.dumps({"success": False, "error": str(e)})
+
+
+async def word_live_insert_chart(filename: Optional[str] = None, chart_type: str = "bar", title: Optional[str] = None, categories: Optional[str] = None, values: Optional[str] = None) -> str:
+    """Insert a chart into an open Word document (Windows only).
+
+    Args:
+        filename: Document name or path (None = active document).
+        chart_type: Chart type — "bar", "column", "line", "pie", "area", "scatter". Default "bar".
+        title: Optional chart title.
+        categories: Comma-separated category labels.
+        values: Comma-separated numeric values.
+
+    Returns:
+        JSON with result.
+    """
+    if sys.platform != "win32":
+        return json.dumps({"success": False, "error": "Insert chart requires Microsoft Word on Windows"})
+    try:
+        from word_document_server.core.word_com import get_word_app, find_document
+        app = get_word_app()
+        doc = find_document(app, filename)
+        chart_type_map = {"bar": 2, "column": 51, "line": 4, "pie": 5, "area": 1, "scatter": -4169}
+        xl_chart = chart_type_map.get(chart_type.lower())
+        if xl_chart is None:
+            return json.dumps({"success": False, "error": f"Unknown chart type '{chart_type}'"})
+        sel = app.Selection
+        inline_shape = doc.InlineShapes.AddChart2(Style=-1, Type=xl_chart, Range=sel.Range)
+        if categories and values:
+            chart = inline_shape.Chart
+            chart_data = chart.ChartData
+            wb = chart_data.Workbook
+            ws = wb.Worksheets(1)
+            cats = [c.strip() for c in categories.split(",")]
+            vals_list = [float(v.strip()) for v in values.split(",")]
+            ws.Cells(1, 1).Value = "Category"
+            ws.Cells(1, 2).Value = "Value"
+            for i, cat in enumerate(cats):
+                ws.Cells(i + 2, 1).Value = cat
+            for i, val in enumerate(vals_list):
+                ws.Cells(i + 2, 2).Value = val
+            if title:
+                chart.HasTitle = True
+                chart.ChartTitle.Text = title
+        return json.dumps({"success": True, "chart_type": chart_type, "title": title})
+    except Exception as e:
+        return json.dumps({"success": False, "error": str(e)})
+
+
+async def word_live_insert_index(filename: Optional[str] = None) -> str:
+    """Insert a subject index at the end of an open Word document.
+
+    Args:
+        filename: Document name or path (None = active document).
+
+    Returns:
+        JSON with result.
+    """
+    if _MAC_AVAILABLE:
+        from word_document_server.core.word_mac import _run_jxa, _doc_finder_js
+        finder = _doc_finder_js(filename)
+        return _run_jxa(f"""
+var app = Application("Microsoft Word");
+{finder}
+app.make({{new: "index", at: d}});
+JSON.stringify({{success: true, action: "insert_index"}});
+""")
+
+    try:
+        from word_document_server.core.word_com import get_word_app, find_document
+        app = get_word_app()
+        doc = find_document(app, filename)
+        sel = app.Selection
+        sel.EndKey(Unit=6)
+        sel.InsertBreak(Type=7)  # wdSectionBreakNextPage
+        doc.Indexes.Add(Range=sel.Range, HeadingSeparator=0, Type=0, RightAlignPageNumbers=True)
+        doc.Indexes(1).Update()
+        return json.dumps({"success": True, "action": "insert_index"})
+    except Exception as e:
+        return json.dumps({"success": False, "error": str(e)})

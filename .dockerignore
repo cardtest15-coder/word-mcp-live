@@ -1,0 +1,17 @@
+.git
+.github
+.env
+__pycache__
+*.pyc
+*.pyo
+tests/
+docs/
+*.egg-info
+build/
+dist/
+.mcpbignore
+.mcpregistry_*
+mcp-publisher.exe
+*.mcpb
+Dockerfile
+.dockerignore

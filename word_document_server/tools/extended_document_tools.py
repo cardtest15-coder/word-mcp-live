@@ -8,8 +8,7 @@ import json
 import subprocess
 import platform
 import shutil
-from typing import Dict, List, Optional, Any, Union, Tuple
-from docx import Document
+from typing import Optional
 
 from word_document_server.utils.file_utils import check_file_writeable, ensure_docx_extension, get_file_lock
 from word_document_server.utils.extended_document_utils import get_paragraph_text, find_text, get_highlighted_text
@@ -63,7 +62,7 @@ async def find_text_in_document(filename: str, text_to_find: str, match_case: bo
         return f"Failed to search for text: {str(e)}"
 
 
-async def get_highlighted_text_from_document(filename: str, color: str = None) -> str:
+async def get_highlighted_text_from_document(filename: str, color: Optional[str] = None) -> str:
     """Extract all highlighted text from a Word document, including table cells.
 
     Args:
@@ -125,13 +124,18 @@ async def convert_to_pdf(filename: str, output_filename: Optional[str] = None) -
             system = platform.system()
 
             if system == "Windows":
-                # On Windows, try docx2pdf which uses Microsoft Word
                 try:
-                    from docx2pdf import convert
-                    convert(filename, output_filename)
+                    from word_document_server.core.word_com import comtypes_word_app
+                    with comtypes_word_app() as (word, created_new):
+                        was_visible = word.Visible if not created_new else True
+                        doc = word.Documents.Open(os.path.abspath(filename))
+                        doc.SaveAs(os.path.abspath(output_filename), FileFormat=17)
+                        doc.Close()
+                        if not created_new:
+                            word.Visible = was_visible
                     return f"Document successfully converted to PDF: {output_filename}"
-                except (ImportError, Exception) as e:
-                    return f"Failed to convert document to PDF: {str(e)}\nNote: docx2pdf requires Microsoft Word to be installed."
+                except Exception as e:
+                    return f"Failed to convert document to PDF: {str(e)}\nNote: PDF conversion requires Microsoft Word to be installed."
 
             elif system in ["Linux", "Darwin"]:  # Linux or macOS
                 errors = []
