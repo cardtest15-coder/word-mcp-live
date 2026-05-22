@@ -1,6 +1,6 @@
 # Render Deployment Guide
 
-This document explains how to deploy the Office Word MCP Server on Render.
+This document explains how to deploy the word-mcp-live server on Render.
 
 ## Required Environment Variables
 
@@ -24,7 +24,7 @@ Set the following environment variables in your Render service:
 ## How to Set Environment Variables
 
 1. Go to your Render dashboard: https://dashboard.render.com
-2. Navigate to your service: `Office-Word-MCP-Server`
+2. Navigate to your service: `word-mcp-live`
 3. Click on "Environment" in the left sidebar
 4. Add the environment variable:
    - Key: `MCP_TRANSPORT`

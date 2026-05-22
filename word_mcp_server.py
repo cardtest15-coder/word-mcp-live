@@ -1,9 +1,5 @@
 #!/usr/bin/env python3
-"""
-Run script for the Word Document Server.
-
-This script provides a simple way to start the Word Document Server.
-"""
+"""Entry point for word-mcp-live MCP server (195 tools)."""
 
 from word_document_server.main import run_server
 

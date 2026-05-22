@@ -21,10 +21,9 @@ def check_prerequisites():
     uv_installed = shutil.which("uv") is not None
     uvx_installed = shutil.which("uvx") is not None
     
-    # Check if word-document-server is already installed via pip
     try:
         result = subprocess.run(
-            [sys.executable, "-m", "pip", "show", "word-document-server"],
+            [sys.executable, "-m", "pip", "show", "word-mcp-live"],
             capture_output=True,
             text=True,
             check=False
@@ -173,7 +172,7 @@ def setup_venv():
 
 def generate_mcp_config_local(python_path, transport_config):
     """
-    Generate MCP configuration for locally installed word-document-server
+    Generate MCP configuration for locally installed word-mcp-live
     
     Parameters:
     - python_path: Path to Python interpreter in the virtual environment
@@ -211,7 +210,7 @@ def generate_mcp_config_local(python_path, transport_config):
     # Create MCP configuration dictionary
     config = {
         "mcpServers": {
-            "word-document-server": {
+            "word-mcp-live": {
                 "command": python_path,
                 "args": [server_script_path],
                 "env": env
@@ -228,7 +227,7 @@ def generate_mcp_config_local(python_path, transport_config):
 
 def generate_mcp_config_uvx(transport_config):
     """
-    Generate MCP configuration for PyPI-installed word-document-server using UVX
+    Generate MCP configuration for PyPI-installed word-mcp-live using UVX
     
     Parameters:
     - transport_config: Transport configuration dictionary
@@ -261,7 +260,7 @@ def generate_mcp_config_uvx(transport_config):
     # Create MCP configuration dictionary
     config = {
         "mcpServers": {
-            "word-document-server": {
+            "word-mcp-live": {
                 "command": "uvx",
                 "args": ["--from", "word-mcp-live", "word_mcp_server"],
                 "env": env
@@ -278,7 +277,7 @@ def generate_mcp_config_uvx(transport_config):
 
 def generate_mcp_config_module(transport_config):
     """
-    Generate MCP configuration for PyPI-installed word-document-server using Python module
+    Generate MCP configuration for PyPI-installed word-mcp-live using Python module
     
     Parameters:
     - transport_config: Transport configuration dictionary
@@ -311,7 +310,7 @@ def generate_mcp_config_module(transport_config):
     # Create MCP configuration dictionary
     config = {
         "mcpServers": {
-            "word-document-server": {
+            "word-mcp-live": {
                 "command": sys.executable,
                 "args": ["-m", "word_document_server"],
                 "env": env
@@ -328,11 +327,11 @@ def generate_mcp_config_module(transport_config):
 
 def install_from_pypi():
     """
-    Install word-document-server from PyPI
+    Install word-mcp-live from PyPI
     
     Returns: True if successful, False otherwise
     """
-    print("\nInstalling word-document-server from PyPI...")
+    print("\nInstalling word-mcp-live from PyPI...")
     try:
         subprocess.run([sys.executable, "-m", "pip", "install", "word-mcp-live"], check=True)
         print("word-mcp-live successfully installed from PyPI!")
@@ -442,9 +441,9 @@ if __name__ == '__main__':
     # Get transport configuration
     transport_config = get_transport_choice()
     
-    # If word-document-server is already installed, offer config options
+    # If word-mcp-live is already installed, offer config options
     if word_server_installed:
-        print("word-document-server is already installed via pip.")
+        print("word-mcp-live is already installed via pip.")
         
         if uvx_installed:
             print("\nOptions:")
@@ -485,9 +484,9 @@ if __name__ == '__main__':
                 print("Invalid choice. Exiting.")
                 sys.exit(1)
     
-    # If word-document-server is not installed, offer installation options
+    # If word-mcp-live is not installed, offer installation options
     else:
-        print("word-document-server is not installed.")
+        print("word-mcp-live is not installed.")
         
         print("\nOptions:")
         print("1. Install from PyPI (recommended)")

@@ -16,8 +16,8 @@ Describe the scenario where this would be useful. What are you trying to accompl
 If this is a new tool, what should it be called? (e.g. `word_live_insert_chart`)
 
 **Mode**
-- [ ] Cross-platform (python-docx) — works on Windows, macOS, Linux
-- [ ] Windows Live (COM) — requires Word open
+- [ ] Cross-platform (python-docx, 115 tools) — works on Windows, macOS, Linux
+- [ ] Live (COM/JXA, 80 tools) — requires Word open on Windows or macOS
 - [ ] Both
 
 **Alternatives considered**

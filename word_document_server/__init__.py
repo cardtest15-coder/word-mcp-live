@@ -1,15 +1,9 @@
 """
 Word Document Server - MCP server for Microsoft Word document manipulation.
 
-This package provides tools for creating, reading, and manipulating Microsoft Word 
-documents through the Model Context Protocol (MCP).
-
-Features:
-- Document creation and management
-- Content addition (headings, paragraphs, tables, images)
-- Text and table formatting
-- Document protection (password, restricted editing, signatures)
-- Footnote and endnote management
+195 tools: 115 cross-platform (python-docx) + 80 live (COM/JXA).
+Supports live editing on Windows (COM) and macOS (JXA), plus cross-platform
+file-based operations via python-docx.
 """
 
-__version__ = "1.2.0"
+__version__ = "2.0.0"

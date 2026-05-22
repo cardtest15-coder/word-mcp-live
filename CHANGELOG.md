@@ -5,7 +5,7 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [2.0.0] - 2026-05-22
 
 ### Added
 - **71 new tools** (124 → 195) across Phase 1 and Phase 2 feature expansions
@@ -22,14 +22,35 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Extra live tools** (8): `word_live_spell_check`, `word_live_check_grammar`, `word_live_insert_table_of_figures`, `word_live_insert_shape`, `word_live_run_macro`, `word_live_print`, `word_live_get_doc_variable`, `word_live_set_doc_variable`
 - **13 live style/column/table/object tools**: `word_live_list_styles`, `word_live_apply_style`, `word_live_modify_style`, `word_live_set_section_columns`, `word_live_insert_column_break`, `word_live_get_section_layout`, `word_live_delete_table`, `word_live_repeat_table_header`, `word_live_sort_table`, `word_live_update_table_of_contents`, `word_live_insert_text_box`, `word_live_insert_chart`, `word_live_insert_index`
 - `comtypes_word_app` context manager in `word_com.py` — eliminates duplicate GetActiveObject/CreateObject/Quit boilerplate
-- 45 new unit tests for Phase 1+2 tools (`tests/test_phase2_tools.py`)
+- `_resolve_style()` with `_WD_STYLE_MAP` — locale-aware style name resolution for COM (English → NameLocal)
+- `get_word_app()` now auto-starts Word if not running; `find_document()` auto-opens from disk
+- 91 unit tests, 46/46 live tools verified via MCP integration test
 
 ### Fixed
-- `WD_COLOR_INDEX` mapping — `CYAN`/`MAGENTA`/`NONE` don't exist in python-docx; mapped to `TURQUOISE`/`PINK`/`AUTO`
+- **8 COM bugs found and fixed through systematic live testing**:
+  1. `get_word_app()` — now starts Word if not running (was: RuntimeError)
+  2. `find_document()` — now opens file from disk if not open (was: "No documents open")
+  3. `word_live_sort_table` — `tbl.Sort(Column=)` → `tbl.Range.Sort(SortFieldType=, SortOrder=, SortColumn=)`
+  4. `word_live_insert_text_box` — `AddTextbox(Orientation=0,...)` → positional float args `AddTextbox(1, left, top, width, height)`
+  5. `word_live_insert_content_control` — `PlaceholderText` readonly → `SetPlaceholderText()` method
+  6. `word_live_set_page_borders` — `PageSetup.Borders` → `Section.Borders`
+  7. `word_live_set_custom_property` — `CDP.Add()` broken in COM → zipfile fallback
+  8. `word_live_spell_check` — `CheckSpelling()` blocks with modal dialog → `doc.SpellingErrors` read-only
+- 198 parameter type mismatches (`str = None` → `Optional[str] = None`) for FastMCP Pydantic validation
+- 5 JXA off-by-one errors, 1 copy-paste bug, 200+ error format fixes
+- `WD_COLOR_INDEX` mapping — `CYAN`/`MAGENTA`/`NONE` don't exist; mapped to `TURQUOISE`/`PINK`/`AUTO`
 - `WD_TAB_LEADER.LEADER_NONE` doesn't exist; replaced with `WD_TAB_LEADER.SPACES`
-- `set_custom_property` — rewrote custom XML part handling using zipfile instead of broken `docx.opc.part.Part` constructor
-- 8 cross-module parameter/type mismatches (see session summary)
-- 93+ ruff auto-fixes (unused imports, f-string issues, ambiguous variable names)
+- `set_custom_property` — rewrote using zipfile instead of broken `docx.opc.part.Part` constructor
+- Repository migrated to `cardtest15-coder/word-mcp-live` (author's own repo, not a fork)
+
+### Changed
+- Version bumped to 2.0.0
+- All repo URLs updated from `ykarapazar` to `cardtest15-coder`
+- `requirements.txt` aligned with `pyproject.toml` dependencies
+- `smithery.yaml` command updated to `uv run --directory . word_mcp_server`
+- `setup_mcp.py` server key: `word-document-server` → `word-mcp-live`
+- `publish.yml` upgraded to trusted publisher (OIDC) via `pypa/gh-action-pypi-publish`
+- `manifest.json` updated to v2.0.0, 195 tools, `uv run` command
 
 ## [1.6.0] - 2026-04-29
 

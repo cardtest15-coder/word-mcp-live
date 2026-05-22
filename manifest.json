@@ -1,10 +1,10 @@
 {
   "manifest_version": "0.3",
   "name": "word-mcp-live",
-  "version": "1.6.2",
-  "description": "The only MCP server that edits Word documents while they're open. Live editing, tracked changes, per-action undo, comments, and 114 tools for complete Word document control.",
+  "version": "2.0.0",
+  "description": "MCP server for Microsoft Word — 195 tools: 115 cross-platform (python-docx) + 80 live (COM/JXA). Live editing, tracked changes, per-action undo, comments, formatting, export, and full document control.",
   "author": {
-    "name": "Yüce Karapazar",
+    "name": "cardtest15-coder",
     "url": "https://github.com/cardtest15-coder"
   },
   "repository": {
@@ -16,13 +16,13 @@
     "type": "python",
     "entry_point": "word_mcp_server.py",
     "mcp_config": {
-      "command": "uvx",
-      "args": ["word-mcp-live"],
+      "command": "uv",
+      "args": ["run", "--directory", ".", "word_mcp_server"],
       "env": {
         "MCP_AUTHOR": "Author",
         "MCP_AUTHOR_INITIALS": ""
       }
     }
   },
-  "keywords": ["word", "docx", "microsoft-word", "document", "com-automation", "tracked-changes", "live-editing"]
+  "keywords": ["word", "docx", "microsoft-word", "document", "com-automation", "tracked-changes", "live-editing", "jxa", "macos"]
 }
