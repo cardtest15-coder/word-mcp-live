@@ -1,6 +1,7 @@
 # Project files
 .idea
 .DS_Store
+.opencode/
 
 # Python-generated files
 __pycache__/
@@ -24,3 +25,11 @@ mcp-config.json
 # MCP publisher
 mcp-publisher.exe
 *.mcpb
+
+# Test/temp Word files
+*.protection
+_test_*.docx
+_full*.docx
+test_output.docx
+~$*.docx
+~WRL*.tmp

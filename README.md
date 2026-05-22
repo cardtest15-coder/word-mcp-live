@@ -67,7 +67,7 @@ pip install word-mcp-live
 Or install from source:
 
 ```bash
-git clone https://github.com/ykarapazar/word-mcp-live.git
+git clone https://github.com/cardtest15-coder/word-mcp-live.git
 cd word-mcp-live
 pip install -e .
 ```
@@ -198,7 +198,7 @@ Add to `~/.codeium/windsurf/mcp_config.json`:
   "mcpServers": {
     "word": {
       "command": "docker",
-      "args": ["run", "-i", "--rm", "ghcr.io/ykarapazar/word-mcp-live"],
+      "args": ["run", "-i", "--rm", "ghcr.io/cardtest15-coder/word-mcp-live"],
       "env": {
         "MCP_AUTHOR": "Your Name",
         "MCP_AUTHOR_INITIALS": "YN"
@@ -357,8 +357,8 @@ The comment appears in Word's Review panel, anchored to the specified text.
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for development setup, code style, and how to add new tools.
 
-Found a bug? [Open an issue](https://github.com/ykarapazar/word-mcp-live/issues/new?template=bug_report.md).
-Have an idea? [Request a feature](https://github.com/ykarapazar/word-mcp-live/issues/new?template=feature_request.md).
+Found a bug? [Open an issue](https://github.com/cardtest15-coder/word-mcp-live/issues/new?template=bug_report.md).
+Have an idea? [Request a feature](https://github.com/cardtest15-coder/word-mcp-live/issues/new?template=feature_request.md).
 
 ## Acknowledgments
 
@@ -372,9 +372,9 @@ This server runs entirely on your local machine. No data is collected, transmitt
 
 ## Support
 
-- **Bug reports:** [Open an issue](https://github.com/ykarapazar/word-mcp-live/issues/new?template=bug_report.md)
-- **Feature requests:** [Request a feature](https://github.com/ykarapazar/word-mcp-live/issues/new?template=feature_request.md)
-- **Discussions:** [GitHub Discussions](https://github.com/ykarapazar/word-mcp-live/discussions)
+- **Bug reports:** [Open an issue](https://github.com/cardtest15-coder/word-mcp-live/issues/new?template=bug_report.md)
+- **Feature requests:** [Request a feature](https://github.com/cardtest15-coder/word-mcp-live/issues/new?template=feature_request.md)
+- **Discussions:** [GitHub Discussions](https://github.com/cardtest15-coder/word-mcp-live/discussions)
 
 ## License
 
@@ -382,12 +382,12 @@ MIT License — see [LICENSE](LICENSE) for details.
 
 ## Star History
 
-<a href="https://star-history.com/#ykarapazar/word-mcp-live&Date">
+<a href="https://star-history.com/#cardtest15-coder/word-mcp-live&Date">
  <picture>
-   <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/svg?repos=ykarapazar/word-mcp-live&type=Date&theme=dark" />
-   <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/svg?repos=ykarapazar/word-mcp-live&type=Date" />
-   <img alt="Star History Chart" src="https://api.star-history.com/svg?repos=ykarapazar/word-mcp-live&type=Date" />
+   <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/svg?repos=cardtest15-coder/word-mcp-live&type=Date&theme=dark" />
+   <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/svg?repos=cardtest15-coder/word-mcp-live&type=Date" />
+   <img alt="Star History Chart" src="https://api.star-history.com/svg?repos=cardtest15-coder/word-mcp-live&type=Date" />
  </picture>
 </a>
 
-<!-- mcp-name: io.github.ykarapazar/word-mcp-live -->
+<!-- mcp-name: io.github.cardtest15-coder/word-mcp-live -->

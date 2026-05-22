@@ -5,10 +5,10 @@
   "description": "The only MCP server that edits Word documents while they're open. Live editing, tracked changes, per-action undo, comments, and 114 tools for complete Word document control.",
   "author": {
     "name": "Yüce Karapazar",
-    "url": "https://github.com/ykarapazar"
+    "url": "https://github.com/cardtest15-coder"
   },
   "repository": {
-    "url": "https://github.com/ykarapazar/word-mcp-live",
+    "url": "https://github.com/cardtest15-coder/word-mcp-live",
     "type": "git"
   },
   "license": "MIT",
